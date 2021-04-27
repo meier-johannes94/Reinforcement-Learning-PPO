@@ -35,7 +35,7 @@ class BatchModes(Enum):
 
 # Source: https://github.com/nikhilbarhate99/PPO-PyTorch
 class ActorCritic(nn.Module):
-    def __init__(self, state_dim, discrete,  action_dim, policy_depth,
+    def __init__(self, state_dim, discrete, action_dim, policy_depth,
                  policy_width, value_depth, value_width, activation_function,
                  minimum_std, initial_std, initializer,
                  policy_last_layer_scaler, value_last_layer_scaler):
@@ -127,7 +127,7 @@ class ActorCritic(nn.Module):
     def forward(self):
         raise NotImplementedError
 
-    def action_distribution(self, state, evaluation):
+    def compute_action_distribution(self, state, evaluation):
         if self.discrete:
             action_probs = self.actor(state)
             return Categorical(action_probs)
@@ -150,7 +150,7 @@ class ActorCritic(nn.Module):
     def act(self, state, memory=None):  # Evaluation = (Memory is None)
         evaluation = memory is None
 
-        dist = self.action_distribution(state, evaluation)
+        dist = self.compute_action_distribution(state, evaluation)
         action = dist.sample()
 
         if evaluation:
@@ -164,7 +164,7 @@ class ActorCritic(nn.Module):
         return action.cpu().numpy()
 
     def evaluate(self, state, action):
-        dist = self.action_distribution(state, False)
+        dist = self.compute_action_distribution(state, False)
 
         action_logprobs = dist.log_prob(action)
         dist_entropy = dist.entropy()
@@ -326,19 +326,14 @@ class PPO:
     def compute_advantages_and_returns(self, memory):
         states = torch.stack(memory.states).to(device)
         values = self.policy.critic(states).flatten().float().detach().cpu()
+        values = values.numpy()
 
-        returns, advantages = self.compute_gae_adv(values.numpy(), memory)
-
-        advantages = torch.from_numpy(advantages).float().to(device)
-        returns = torch.from_numpy(np.asarray(returns)).float().to(device)
-        return advantages, returns
-
-    def compute_gae_adv(self, values, memory):
         final_states = torch.FloatTensor(memory.final_states).to(device)
         final_values = self.policy.critic(
             final_states).flatten().detach().cpu().numpy()
 
-        returns = []
+        returns = np.zeros(len(memory.actions), dtype=float)
+        index = len(returns)-1
 
         step_reverse_counter = memory.lengths[-1]
         reverse_index = len(memory.lengths)-1
@@ -376,7 +371,9 @@ class PPO:
                            * mask[step_reverse_counter]
                            * gae)
 
-            returns.insert(0, gae + values[step])
+            returns[index] = gae + values[step]
+            index -= 1
+            #returns.insert(0, gae + values[step])
 
             step_reverse_counter -= 1
             last_step = False
@@ -384,4 +381,6 @@ class PPO:
 
         advantages = returns - values
 
-        return returns, advantages
+        advantages = torch.from_numpy(advantages).float().to(device)
+        returns = torch.from_numpy(np.asarray(returns)).float().to(device)
+        return advantages, returns

@@ -19,26 +19,26 @@ class OpponentType(Enum):
 class Agent:
     def __init__(self, agent_register=None):
         self.mode = Mode.TRAINING
-        self.current_frame_skip_pos = 0
-        self.current_frame_skip_action = None
-        self.current_frame_skip_reward_true = 0
-        self.current_frame_skip_reward_calc = 0
-        self.current_ep_timestep_counter = 0
-        self.current_reward_calc = 0
-        self.current_reward_true = 0
-        self.current_opp_type = 1  # Defending
-        self.current_opp_weak = True
-        self.current_frame_skip_activated = False
-        self.current_closeness_puck = 0
-        self.current_touch_puck = 0
-        self.current_puck_direction = 0
+        self._current_frame_skip_pos = 0
+        self._current_frame_skip_action = None
+        self._current_frame_skip_reward_true = 0
+        self._current_frame_skip_reward_calc = 0
+        self._current_ep_timestep_counter = 0
+        self._current_reward_calc = 0
+        self._current_reward_true = 0
+        self._current_opp_type = 1  # Defending
+        self._current_opp_weak = True
+        self._current_frame_skip_activated = False
+        self._current_closeness_puck = 0
+        self._current_touch_puck = 0
+        self._current_puck_direction = 0
 
-        self.timesteps_since_update = 0
+        self._timesteps_since_update = 0
 
-        self.memory = Memory()
-        self.memory.lengths.append(0)
+        self._memory = Memory()
+        self._memory.lengths.append(0)
 
-        self.agent_register = agent_register
+        self._agent_register = agent_register
 
     def configure(self, environment_name, state_dim, discrete, action_dim,
                   episode_max_steps, filename, save_episodes, K_epochs,
@@ -51,9 +51,12 @@ class Agent:
                   optimizer_momentum, optimizer_epsilon, value_normalization,
                   advantage_normalization, reward_normalization,
                   input_normalization, gradient_clipping,
-                  input_clipping_max_abs_value):
+                  input_clipping_max_abs_value, weighting_true_reward,
+                  weighting_reward_winner, weighting_reward_closeness_puck,
+                  weighting_reward_touch_puck, weighting_reward_puck_direction,
+                  default_timestep_loss):
 
-        self.config = {
+        self._config = {
             # Environment & general setting
             'environment_name': environment_name,
             'state_dim': state_dim,
@@ -108,15 +111,15 @@ class Agent:
             'input_clipping_max_abs_value': input_clipping_max_abs_value,
 
             # weight calculation
-            'weighting_true_reward': 1,
-            'weighting_reward_winner': 0,
-            'weighting_reward_closeness_puck': 0,
-            'weighting_reward_touch_puck': 0,
-            'weighting_reward_puck_direction': 0,
-            'default_timestep_loss': 0
+            'weighting_true_reward': weighting_true_reward,
+            'weighting_reward_winner': weighting_reward_winner,
+            'weighting_reward_closeness_puck': weighting_reward_closeness_puck,
+            'weighting_reward_touch_puck': weighting_reward_touch_puck,
+            'weighting_reward_puck_direction': weighting_reward_puck_direction,
+            'default_timestep_loss': default_timestep_loss
         }
 
-        self.stats = {
+        self._stats = {
             'global_timestep_counter': 0,
             'ep_counter': 1,
             'learning_ep_counter': 1,
@@ -138,81 +141,184 @@ class Agent:
             'ep_frame_skip': []
         }
 
-        print(self.config)
-        self.configure_PPO()
+        self._configure_ppo()
 
-    def configure_PPO(self):
+    def _configure_ppo(self):
         self.ppo = PPO(
-            self.config["state_dim"], self.config["discrete"],
-            self.config["action_dim"], self.config["K_epochs"],
-            self.config["eps_clip"], self.config["policy_depth"],
-            self.config["policy_width"], self.config["value_depth"],
-            self.config["value_width"], self.config["activation_function"],
-            self.config["minimum_std"], self.config["initial_std"],
-            self.config["policy_last_layer_scaler"],
-            self.config["value_last_layer_scaler"], self.config["initializer"],
-            self.config["lbda"], self.config["eps_value_clip"],
-            self.config["mini_batch_size"], self.config["batch_mode"],
-            self.config["gamma"], self.config["handle_abandoned"],
-            self.config["frame_skipping_length"], self.config["optimizer_lr"],
-            self.config["optimizer_weight_decay"],
-            self.config["optimizer_momentum"],
-            self.config["optimizer_epsilon"],
-            self.config["value_normalization"],
-            self.config["advantage_normalization"],
-            self.config["reward_normalization"],
-            self.config["input_normalization"],
-            self.config["gradient_clipping"],
-            self.config["input_clipping_max_abs_value"]
+            self._config["state_dim"], self._config["discrete"],
+            self._config["action_dim"], self._config["K_epochs"],
+            self._config["eps_clip"], self._config["policy_depth"],
+            self._config["policy_width"], self._config["value_depth"],
+            self._config["value_width"], self._config["activation_function"],
+            self._config["minimum_std"], self._config["initial_std"],
+            self._config["policy_last_layer_scaler"],
+            self._config["value_last_layer_scaler"], self._config["initializer"],
+            self._config["lbda"], self._config["eps_value_clip"],
+            self._config["mini_batch_size"], self._config["batch_mode"],
+            self._config["gamma"], self._config["handle_abandoned"],
+            self._config["frame_skipping_length"], self._config["optimizer_lr"],
+            self._config["optimizer_weight_decay"],
+            self._config["optimizer_momentum"],
+            self._config["optimizer_epsilon"],
+            self._config["value_normalization"],
+            self._config["advantage_normalization"],
+            self._config["reward_normalization"],
+            self._config["input_normalization"],
+            self._config["gradient_clipping"],
+            self._config["input_clipping_max_abs_value"]
         )
 
+    def act(self, state):
+        if self.mode == Mode.TRAINING:
+            if self._current_frame_skip_pos == 0:
+                self._current_frame_skip_pos = (
+                    self._config["frame_skipping_length"]
+                    if self._current_frame_skip_activated else 1)
+                action = self.ppo.act(state, self._memory)
+                self._current_frame_skip_action = action
+            else:
+                action = self._current_frame_skip_action
+
+            self._current_frame_skip_pos -= 1
+        else:
+            action = self.ppo.act(state)
+
+        return action
+
+    def feedback(self, reward, info, done, state):
+        # Calculate enginered reward
+        reward_calc = self._calculate_reward(reward, info, done)
+
+        # Frame skipping: Return same action
+        if (self._current_frame_skip_pos > 0 and
+                not done and not self.mode == Mode.EVALUATION):
+            self._current_frame_skip_reward_calc += reward
+            self._current_frame_skip_reward_true += reward_calc
+            return
+
+        elif ((self._current_frame_skip_pos == 0 or done)
+                and not self.mode == Mode.EVALUATION):
+            reward_calc = self._current_frame_skip_reward_calc + reward_calc
+            reward = self._current_frame_skip_reward_true + reward
+
+            self._current_frame_skip_reward_calc = 0
+            self._current_frame_skip_reward_true = 0
+
+        if (self.mode == Mode.TRAINING and
+                (self._current_frame_skip_pos == 0 or done)):
+            self._memory.rewards.append(reward_calc)
+            self._memory.is_terminals.append(done)
+            self._timesteps_since_update += 1
+
+        # Increase all temporary statistics numbers
+        self._current_ep_timestep_counter += 1
+        self._stats["global_timestep_counter"] += 1
+        self._current_reward_calc += reward_calc
+        self._current_reward_true += reward
+        self._current_closeness_puck += info["reward_closeness_to_puck"]
+        self._current_touch_puck += info["reward_touch_puck"]
+        self._current_puck_direction += info["reward_puck_direction"]
+        self._memory.lengths[-1] += 1
+
+        if done or (self._current_ep_timestep_counter
+                    % self._config["episode_max_steps"] == 0):
+            # Finalize last episode
+            self._stats["ep_counter"] += 1
+            if self.mode == Mode.TRAINING:
+                self._stats["learning_ep_counter"] += 1
+            self._stats["episode_mode"].append(self.mode.value)
+            self._stats["ep_rewards_calc"].append(self._current_reward_calc)
+            self._stats["ep_rewards_true"].append(self._current_reward_true)
+            self._stats["ep_closeness_puck"].append(
+                self._current_closeness_puck)
+            self._stats["ep_touch_puck"].append(self._current_touch_puck)
+            self._stats["ep_puck_direction"].append(
+                self._current_puck_direction)
+            self._stats["ep_length"].append(self._current_ep_timestep_counter)
+            self._stats["ep_wins"].append(info["winner"])
+            self._stats["ep_opp_type"].append(self._current_opp_type)
+            self._stats["ep_opp_weak"].append(self._current_opp_weak)
+
+            doc_frame_skip = 1
+            if (self.mode == Mode.EVALUATION and
+                    self._current_frame_skip_activated):
+                doc_frame_skip = self._stats["frame_skipping_length"]
+            self._stats["ep_frame_skip"].append(doc_frame_skip)
+
+            self._memory.winners.append(info["winner"])
+            self._memory.final_states.append(state.reshape(-1))
+
+            # Prepare next expisode: Reset temporary statistics
+            self._current_frame_skip_pos = 0
+            self._current_reward_calc = 0
+            self._current_reward_true = 0
+            self._current_ep_timestep_counter = 0
+            self.current_closeness_to_puck = 0
+            self._current_touch_puck = 0
+            self._current_puck_direction = 0
+
+            # Prepare next episode: Set next params
+            self._memory.lengths.append(0)
+
+            if self._stats["ep_counter"] % self._config["save_episodes"] == 0:
+                self.save()
+
+            if (self.mode == Mode.TRAINING and self._timesteps_since_update >=
+                    self._config["update_episodes"]):
+                self._update()
+
+    def _calculate_reward(self, reward, info, done):
+        if self.mode == Mode.EVALUATION:
+            return reward
+        elif done:
+            value = (reward * self._config["weighting_true_reward"]
+                     + info["winner"] * self._config["weighting_reward_winner"]
+                     + (info["reward_closeness_to_puck"]
+                        * self._config["weighting_reward_closeness_puck"])
+                     + ((info["reward_touch_puck"]
+                        * self._config["weighting_reward_touch_puck"]))
+                     + (info["reward_puck_direction"]
+                        * self._config["weighting_reward_puck_direction"])
+                     - self._config["default_timestep_loss"])
+            return value
+        else:
+            return 0
+
     def change_mode(self, print_results=False):
-        if self.current_ep_timestep_counter != 0:
+        if self._current_ep_timestep_counter != 0:
             raise Exception("Can't switch mode during episode")
 
         if self.mode == Mode.TRAINING:
-            if len(self.memory.actions) > 0:
-                self.update()
+            if len(self._memory.actions) > 0:
+                self._update()
 
             self.change_frame_skipping_mode(False)
             self.mode = Mode.EVALUATION
-            self.stats["episode_last_switch_to_evaluation"] = \
-                self.stats["ep_counter"]
+            self._stats["episode_last_switch_to_evaluation"] = \
+                self._stats["ep_counter"]
 
         elif self.mode == Mode.EVALUATION:
-            self.cycle_statistics()
+            self._compute_statistics()
 
             self.mode = Mode.TRAINING
-            self.stats["ep_last_training"] = \
-                self.stats["ep_counter"]
+            self._stats["ep_last_training"] = \
+                self._stats["ep_counter"]
 
-    def _calculateWLDRates(cls, matches, start, end):
-        count = end-start
+    def _compute_statistics(self):
 
-        wins = np.sum(np.where(matches > 0, 1, 0))
-        lost = np.sum(np.where(matches < 0, 1, 0))
-        draws = np.sum(np.where(matches == 0, 1, 0))
+        train_start = self._stats["ep_last_training"]-1
+        train_end = self._stats["episode_last_switch_to_evaluation"]-1  # -2+1
+        eval_start = self._stats["episode_last_switch_to_evaluation"]-1
+        eval_end = len(self._stats["ep_rewards_calc"])  # -1+1=0
 
-        return wins / count * 100, lost / count * 100, draws / count * 100
-
-    # Calculates training & evaluation performance, prints
-    # and recoreds performs, adds agent to AgentRegistry
-
-    def cycle_statistics(self):
-
-        train_start = self.stats["ep_last_training"]-1
-        train_end = self.stats["episode_last_switch_to_evaluation"]-1  # -2+1
-        eval_start = self.stats["episode_last_switch_to_evaluation"]-1
-        eval_end = len(self.stats["ep_rewards_calc"])  # -1+1=0
-
-        train_rewards_arr = np.asarray(self.stats["ep_rewards_true"])[
+        train_rewards_arr = np.asarray(self._stats["ep_rewards_true"])[
             train_start:train_end]
-        eval_rewards_arr = np.asarray(self.stats["ep_rewards_true"])[
+        eval_rewards_arr = np.asarray(self._stats["ep_rewards_true"])[
             eval_start:eval_end]
 
-        training_matches = np.asarray(self.stats["ep_wins"])[
+        training_matches = np.asarray(self._stats["ep_wins"])[
             train_start:train_end]
-        eval_matches = np.asarray(self.stats["ep_wins"])[
+        eval_matches = np.asarray(self._stats["ep_wins"])[
             eval_start:eval_end]
 
         avg_train_rewards = (np.sum(train_rewards_arr)
@@ -226,167 +332,77 @@ class Agent:
         eval_wins, eval_lost, eval_draws = self._calculateWLDRates(
             eval_matches, eval_start, eval_end)
 
-        hist_index = 1 if self.current_opp_weak else 0
-        hist_index += 2*(self.current_opp_type.value-1)
+        hist_index = 1 if self._current_opp_weak else 0
+        hist_index += 2*(self._current_opp_type.value-1)
 
-        save_text = ""
-        if len(self.stats["ep_eval_results"][hist_index]) == 0:
+        save_note = ""
+        if len(self._stats["ep_eval_results"][hist_index]) == 0:
             past_max_values = [-1000000]
         else:
-            past_max_values = np.max(np.asarray(self.stats
+            past_max_values = np.max(np.asarray(self._stats
                                                 ["ep_eval_results"]
                                                 [hist_index]))
 
         if past_max_values < avg_eval_rewards:
-            save_text = " - Checkpoint saved"
+            save_note = " - Checkpoint saved"
             self.save("best")
-            if (self.agent_register is not None
-                    and len(self.stats["ep_eval_results"][hist_index]) > 0
+            if (self._agent_register is not None
+                    and len(self._stats["ep_eval_results"][hist_index]) > 0
                     and avg_eval_rewards >= 4):
-                self.agent_register.add_agent(self.config["filename"], "best")
-                save_text = save_text + " - added"
+                self._agent_register.add_agent(
+                    self._config["filename"], "best")
+                save_note = save_note + " - added"
 
-            self.stats["ep_eval_results"][hist_index].append(
+            self._stats["ep_eval_results"][hist_index].append(
                 avg_eval_rewards)
 
         print(("{}: ## Learn(R;W,D,L in %): {:.1f}, {:.0f}, {:.0f}, {:.0f} " +
               "Eval(R;W,D,L in %): {:.1f}, {:.0f}, {:.0f}, {:.0f} {}").format(
-                  self.stats["ep_counter"]-1,
+                  self._stats["ep_counter"]-1,
                   avg_train_rewards, train_wins, train_draws, train_lost,
                   avg_eval_rewards, eval_wins, eval_draws, eval_lost,
-                  save_text))
+                  save_note))
 
-    def act(self, state):
-        if self.mode == Mode.TRAINING:
-            if self.current_frame_skip_pos == 0:
-                self.current_frame_skip_pos = (
-                    self.config["frame_skipping_length"]
-                    if self.current_frame_skip_activated else 1)
-                action = self.ppo.act(state, self.memory)
-                self.current_frame_skip_action = action
-            else:
-                action = self.current_frame_skip_action
+    def _calculateWLDRates(cls, matches, start, end):
+        count = end-start
 
-            self.current_frame_skip_pos -= 1
-        else:
-            action = self.ppo.act(state)
+        wins = np.sum(np.where(matches > 0, 1, 0))
+        lost = np.sum(np.where(matches < 0, 1, 0))
+        draws = np.sum(np.where(matches == 0, 1, 0))
 
-        return action
+        return wins / count * 100, lost / count * 100, draws / count * 100
+
+    def _update(self):
+        if self._memory.lengths[-1] == 0:
+            del self._memory.lengths[-1]
+        self.ppo.update(self._memory)
+        self._memory.clear_memory()
+        self._memory.lengths.append(0)
+        self._timesteps_since_update = 0
 
     def change_frame_skipping_mode(self, activate):
-        if self.current_ep_timestep_counter != 0:
+        if self._current_ep_timestep_counter != 0:
             raise Exception("Can't switch mode during episode")
         if self.mode == Mode.EVALUATION:
             raise Exception("Can't be activated during evaluation")
 
-        self.current_frame_skip_activated = activate
-
-    def feedback(self, reward, info, done, state):
-        # Calculate enginered reward
-        reward_calc = self.calculate_reward(reward, info, done)
-
-        # Frame skipping: Return same action
-        if (self.current_frame_skip_pos > 0 and
-                not done and not self.mode == Mode.EVALUATION):
-            self.current_frame_skip_reward_calc += reward
-            self.current_frame_skip_reward_true += reward_calc
-            return
-
-        elif ((self.current_frame_skip_pos == 0 or done)
-                and not self.mode == Mode.EVALUATION):
-            reward_calc = self.current_frame_skip_reward_calc + reward_calc
-            reward = self.current_frame_skip_reward_true + reward
-
-            self.current_frame_skip_reward_calc = 0
-            self.current_frame_skip_reward_true = 0
-
-        if (self.mode == Mode.TRAINING and
-                (self.current_frame_skip_pos == 0 or done)):
-            self.memory.rewards.append(reward_calc)
-            self.memory.is_terminals.append(done)
-            self.timesteps_since_update += 1
-
-        # Increase all temporary statistics numbers
-        self.current_ep_timestep_counter += 1
-        self.stats["global_timestep_counter"] += 1
-        self.current_reward_calc += reward_calc
-        self.current_reward_true += reward
-        self.current_closeness_puck += info["reward_closeness_to_puck"]
-        self.current_touch_puck += info["reward_touch_puck"]
-        self.current_puck_direction += info["reward_puck_direction"]
-        self.memory.lengths[-1] += 1
-
-        if done or (self.current_ep_timestep_counter
-                    % self.config["episode_max_steps"] == 0):
-            # Finalize last episode
-            self.stats["ep_counter"] += 1
-            if self.mode == Mode.TRAINING:
-                self.stats["learning_ep_counter"] += 1
-            self.stats["episode_mode"].append(self.mode.value)
-            self.stats["ep_rewards_calc"].append(self.current_reward_calc)
-            self.stats["ep_rewards_true"].append(self.current_reward_true)
-            self.stats["ep_closeness_puck"].append(self.current_closeness_puck)
-            self.stats["ep_touch_puck"].append(self.current_touch_puck)
-            self.stats["ep_puck_direction"].append(self.current_puck_direction)
-            self.stats["ep_length"].append(self.current_ep_timestep_counter)
-            self.stats["ep_wins"].append(info["winner"])
-            self.stats["ep_opp_type"].append(self.current_opp_type)
-            self.stats["ep_opp_weak"].append(self.current_opp_weak)
-
-            doc_frame_skip = 1
-            if (self.mode == Mode.EVALUATION and
-                    self.current_frame_skip_activated):
-                doc_frame_skip = self.stats["frame_skipping_length"]
-            self.stats["ep_frame_skip"].append(doc_frame_skip)
-
-            self.memory.winners.append(info["winner"])
-            self.memory.final_states.append(state.reshape(-1))
-
-            # Prepare next expisode: Reset temporary statistics
-            self.current_frame_skip_pos = 0
-            self.current_reward_calc = 0
-            self.current_reward_true = 0
-            self.current_ep_timestep_counter = 0
-            self.current_closeness_to_puck = 0
-            self.current_touch_puck = 0
-            self.current_puck_direction = 0
-
-            # Prepare next episode: Set next params
-            self.memory.lengths.append(0)
-
-            if self.stats["ep_counter"] % self.config["save_episodes"] == 0:
-                self.save()
-
-            if (self.mode == Mode.TRAINING and self.timesteps_since_update >=
-                    self.config["update_episodes"]):
-                self.update()
-
-    def update(self):
-        if self.memory.lengths[-1] == 0:
-            del self.memory.lengths[-1]
-        self.ppo.update(self.memory)
-        self.memory.clear_memory()
-        self.memory.lengths.append(0)
-        self.timesteps_since_update = 0
-
-    def generate_filename(self, info=""):
-        return "checkpoints/{}_{}_{}.pth".format(
-            self.config["environment_name"], self.config["filename"], info)
+        self._current_frame_skip_activated = activate
 
     def save(self, info=""):
-        filename = self.generate_filename(info)
+        filename = "checkpoints/{}_{}_{}.pth".format(
+            self._config["environment_name"], self._config["filename"], info)
 
         torch.save({
             'policy': self.ppo.policy.state_dict(),
             'policy_old': self.ppo.policy_old.state_dict(),
             'optimizer': self.ppo.optimizer.state_dict(),
-            'configuration': self.config,
-            'statistics': self.stats,
+            'configuration': self._config,
+            'statistics': self._stats,
             'input_normalizer': pickle.dumps(self.ppo.input_normalizer),
             'advantage_normalizer':
                 pickle.dumps(self.ppo.advantage_normalizer),
             'reward_normalizer': pickle.dumps(self.ppo.reward_normalizer),
-            'memory': self.memory,
+            'memory': self._memory,
         }, filename)
 
     def load(self, environment_name, filename, info=""):
@@ -394,12 +410,12 @@ class Agent:
             environment_name, filename, info)
         checkpoint = torch.load(filename)
 
-        self.config = checkpoint["configuration"]
-        self.stats = checkpoint["statistics"]
-        self.stats = checkpoint["statistics"]
+        self._config = checkpoint["configuration"]
+        self._stats = checkpoint["statistics"]
+        self._stats = checkpoint["statistics"]
 
-        self.configure_PPO()
-        self.memory = checkpoint["memory"]
+        self._configure_ppo()
+        self._memory = checkpoint["memory"]
 
         self.ppo.policy.load_state_dict(checkpoint["policy"])
         self.ppo.policy_old.load_state_dict(checkpoint["policy_old"])
@@ -412,59 +428,57 @@ class Agent:
         self.ppo.reward_normalizer = pickle.loads(
             checkpoint["reward_normalizer"])
 
-    def calculate_reward(self, reward, info, done):
-        if self.mode == Mode.EVALUATION:
-            return reward
-        elif done:
-            value = (reward * self.config["weighting_true_reward"]
-                     + info["winner"] * self.config["weighting_reward_winner"]
-                     + (info["reward_closeness_to_puck"]
-                        * self.config["weighting_reward_closeness_puck"])
-                     + ((info["reward_touch_puck"]
-                        * self.config["weighting_reward_touch_puck"]))
-                     + (info["reward_puck_direction"]
-                        * self.config["weighting_reward_puck_direction"])
-                     - self.config["default_timestep_loss"])
-            return value
-        else:
-            return 0
+    @property
+    def config(self):
+        return self._config
 
-    def set_opponent(self, opponent_type, opponent_weak):
-        if self.current_ep_timestep_counter != 0:
-            raise Exception("Can't switch mode during episode")
+    @property
+    def op_type(self):
+        return self._current_opp_type
 
-        self.current_opp_type = opponent_type
-        self.current_opp_weak = opponent_weak
+    @op_type.setter
+    def op_type(self, value):
+        if self._current_ep_timestep_counter != 0:
+            raise Exception("Can't switch opponent_type during episode.")
+        self._current_opp_type = value
 
-    def set_filename(self, filename):
-        self.stats["filename"] = filename
+    @property
+    def opp_weak(self):
+        return self._current_opp_weak
 
-    def set_frame_skipping(self, frame_skipping_length,
-                           frame_skipping_activated):
-        if self.current_ep_timestep_counter != 0:
-            raise Exception("Can't switch mode during episode")
+    @opp_weak.setter
+    def opp_weak(self, value):
+        if self._current_ep_timestep_counter != 0:
+            raise Exception(("Can't switch opponent weakness "
+                             + "during a running episode."))
+        self._current_opp_weak = value
 
-        self.config["frame_skipping_length"] = frame_skipping_length
-        self.current_frame_skip_activated = frame_skipping_activated
+    @property
+    def filename(self):
+        return self._config["filename"]
 
-    def set_update_episodes(self, set_update_episodes):
-        if self.current_ep_timestep_counter != 0:
-            raise Exception("Can't switch mode during episode")
+    @filename.setter
+    def filename(self, value):
+        self._config["filename"]
 
-        self.config["update_episodes"] = set_update_episodes
+    @property
+    def frame_skipping_activated(self):
+        return self._current_frame_skip_activated
 
-    def set_reward_weights(self, weighting_true_reward,
-                           weighting_reward_winner,
-                           weighting_reward_closeness_puck,
-                           weighting_reward_touch_puck,
-                           weighting_reward_puck_direction,
-                           default_timestep_loss):
-        if self.current_ep_timestep_counter != 0:
-            raise Exception("Can't switch mode during episode")
+    @frame_skipping_activated.setter
+    def frame_skipping_activated(self, value):
+        if self._current_ep_timestep_counter != 0:
+            raise Exception(("Can't switch frame skipping skipping activation "
+                             + "during a running episode."))
+        self._current_frame_skip_activated = value
 
-        self.config["weighting_true_reward"] = weighting_true_reward
-        self.config["weighting_reward_winner"] = weighting_reward_winner
-        self.config["weighting_reward_closeness_puck"] = weighting_reward_closeness_puck
-        self.config["weighting_reward_touch_puck"] = weighting_reward_touch_puck
-        self.config["weighting_reward_puck_direction"] = weighting_reward_puck_direction
-        self.config["default_timestep_loss"] = default_timestep_loss
+    @property
+    def frame_skipping_length(self):
+        return self._current_frame_skip_activated
+
+    @frame_skipping_length.setter
+    def frame_skipping_length(self, value):
+        if self._current_ep_timestep_counter != 0:
+            raise Exception(("Can't switch frame skipping length during "
+                             + "a running episode."))
+        self._config["frame_skipping_length"] = value

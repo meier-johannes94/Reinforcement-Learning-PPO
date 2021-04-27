@@ -1,13 +1,13 @@
-import torch
-from PPO import ActivationFunctions, Initializers, BatchModes, PPO, Memory
-from Agent import Agent, OpponentType, Mode
-import gym
-import numpy as np
-import random
-import laserhockey.hockey_env as lh
 import sys
 import os
+import numpy as np
+import random
 import pylab as plt
+import torch
+import gym
+import laserhockey.hockey_env as lh
+from PPO import ActivationFunctions, Initializers, BatchModes, PPO, Memory
+from Agent import Agent, OpponentType, Mode
 from AgentRegister import AgentRegister
 
 
@@ -70,15 +70,17 @@ def train_register_change(training_episodes, training_length, eval_length,
                         optimizer_epsilon, value_normalization,
                         advantage_normalization, reward_normalization,
                         input_normalization, gradient_clipping,
-                        input_clipping_max_abs_value)
+                        input_clipping_max_abs_value, 1, 0, 0, 0, 0,
+                        default_timestep_loss)
 
-    agent.set_opponent(opponent_type, opponent_weak)
-    agent.set_filename(filename)
-    agent.set_frame_skipping(frame_skipping_length, False)
-    agent.set_reward_weights(1, 0, 0, 0, 0, default_timestep_loss)
+    agent.op_type = opponent_type
+    agent.op_weak = opponent_weak
+    agent.filename = filename
+    agent.frame_skipping_activated = False
+    agent.frame_skipping_length = frame_skipping_length
 
     if print_config:
-        print(agent.configuration, "\n")
+        print(agent.config, "\n")
 
     current_frame_skip_frequency = frame_skip_frequency
 
@@ -199,7 +201,7 @@ def main():
                           DEFAULT_optimizer_weight_decay, DEFAULT_optimizer_momentum, DEFAULT_optimizer_epsilon, DEFAULT_frame_skipping, DEFAULT_value_normalization, DEFAULT_advantage_normalization,
                           DEFAULT_input_normalization, DEFAULT_update_episodes, DEFAULT_save_episode, DEFAULT_opponent_type,
                           DEFAULT_opponent_weak, DEFAULT_timestep_loss, DEFAULT_frame_skip_interval,
-                          DEFAULT_input_clipping_max_abs_value, DEFAULT_gradient_clipping, DEFAULT_lbda, save_filename, seed_1, print_config=False, load_info="")
+                          DEFAULT_input_clipping_max_abs_value, DEFAULT_gradient_clipping, DEFAULT_lbda, save_filename, seed_1, print_config=True, load_info="")
 
 
 if __name__ == "__main__":
