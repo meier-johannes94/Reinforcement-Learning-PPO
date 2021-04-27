@@ -1,6 +1,7 @@
 import numpy as np
 
 
+
 class Normalizer:
     # change: Autocheck for code quality
     """A class supporting online normalization"""  # change
