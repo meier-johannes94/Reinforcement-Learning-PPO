@@ -163,7 +163,8 @@ class Agent:
             self.config["reward_normalization"],
             self.config["input_normalization"],
             self.config["gradient_clipping"],
-            self.config["input_clipping_max_abs_value"])
+            self.config["input_clipping_max_abs_value"]
+        )
 
     def change_mode(self, print_results=False):
         if self.current_ep_timestep_counter != 0:

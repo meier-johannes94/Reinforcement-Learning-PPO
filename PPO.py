@@ -6,6 +6,7 @@ from torch.distributions import Categorical
 import torch.nn as nn
 import torch.nn.functional as F
 from Normalizer import Normalizer
+from Memory import Memory
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 ZERO_STD = 0.0000001
@@ -30,28 +31,6 @@ class Initializers(Enum):
 class BatchModes(Enum):
     SHUFFLE = 1
     SHUFFLE_RECOMPUTE_ADVANTAGES = 2
-
-
-class Memory:
-    def __init__(self):
-        self.actions = []
-        self.states = []
-        self.logprobs = []
-        self.rewards = []
-        self.is_terminals = []
-        self.final_states = []
-        self.lengths = []
-        self.winners = []
-
-    def clear_memory(self):
-        del self.actions[:]
-        del self.states[:]
-        del self.logprobs[:]
-        del self.rewards[:]
-        del self.is_terminals[:]
-        del self.final_states[:]
-        del self.lengths[:]
-        del self.winners[:]
 
 
 # Source: https://github.com/nikhilbarhate99/PPO-PyTorch
