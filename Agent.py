@@ -6,19 +6,19 @@ from PPO import PPO, Memory, ActivationFunctions, Initializers, BatchModes
 
 
 class Mode(Enum):
-    Training = 1
-    Evaluation = 2
+    TRAINING = 1
+    EVALUATION = 2
 
 
 class OpponentType(Enum):
-    Defending = 1
-    Shooting = 2
-    Normal = 3
+    DEFENDING = 1
+    SHOOTING = 2
+    NORMAL = 3
 
 
 class Agent:
     def __init__(self, agent_register=None):
-        self.mode = Mode.Training
+        self.mode = Mode.TRAINING
         self.current_frame_skip_pos = 0
         self.current_frame_skip_action = None
         self.current_frame_skip_reward_true = 0
@@ -169,19 +169,19 @@ class Agent:
         if self.current_ep_timestep_counter != 0:
             raise Exception("Can't switch mode during episode")
 
-        if self.mode == Mode.Training:
+        if self.mode == Mode.TRAINING:
             if len(self.memory.actions) > 0:
                 self.update()
 
             self.change_frame_skipping_mode(False)
-            self.mode = Mode.Evaluation
+            self.mode = Mode.EVALUATION
             self.stats["episode_last_switch_to_evaluation"] = \
                 self.stats["ep_counter"]
 
-        elif self.mode == Mode.Evaluation:
+        elif self.mode == Mode.EVALUATION:
             self.cycle_statistics()
 
-            self.mode = Mode.Training
+            self.mode = Mode.TRAINING
             self.stats["ep_last_training"] = \
                 self.stats["ep_counter"]
 
@@ -256,7 +256,7 @@ class Agent:
                   save_text))
 
     def act(self, state):
-        if self.mode == Mode.Training:
+        if self.mode == Mode.TRAINING:
             if self.current_frame_skip_pos == 0:
                 self.current_frame_skip_pos = (
                     self.config["frame_skipping_length"]
@@ -275,7 +275,7 @@ class Agent:
     def change_frame_skipping_mode(self, activate):
         if self.current_ep_timestep_counter != 0:
             raise Exception("Can't switch mode during episode")
-        if self.mode == Mode.Evaluation:
+        if self.mode == Mode.EVALUATION:
             raise Exception("Can't be activated during evaluation")
 
         self.current_frame_skip_activated = activate
@@ -286,20 +286,20 @@ class Agent:
 
         # Frame skipping: Return same action
         if (self.current_frame_skip_pos > 0 and
-                not done and not self.mode == Mode.Evaluation):
+                not done and not self.mode == Mode.EVALUATION):
             self.current_frame_skip_reward_calc += reward
             self.current_frame_skip_reward_true += reward_calc
             return
 
         elif ((self.current_frame_skip_pos == 0 or done)
-                and not self.mode == Mode.Evaluation):
+                and not self.mode == Mode.EVALUATION):
             reward_calc = self.current_frame_skip_reward_calc + reward_calc
             reward = self.current_frame_skip_reward_true + reward
 
             self.current_frame_skip_reward_calc = 0
             self.current_frame_skip_reward_true = 0
 
-        if (self.mode == Mode.Training and
+        if (self.mode == Mode.TRAINING and
                 (self.current_frame_skip_pos == 0 or done)):
             self.memory.rewards.append(reward_calc)
             self.memory.is_terminals.append(done)
@@ -319,7 +319,7 @@ class Agent:
                     % self.config["episode_max_steps"] == 0):
             # Finalize last episode
             self.stats["ep_counter"] += 1
-            if self.mode == Mode.Training:
+            if self.mode == Mode.TRAINING:
                 self.stats["learning_ep_counter"] += 1
             self.stats["episode_mode"].append(self.mode.value)
             self.stats["ep_rewards_calc"].append(self.current_reward_calc)
@@ -333,7 +333,7 @@ class Agent:
             self.stats["ep_opp_weak"].append(self.current_opp_weak)
 
             doc_frame_skip = 1
-            if (self.mode == Mode.Evaluation and
+            if (self.mode == Mode.EVALUATION and
                     self.current_frame_skip_activated):
                 doc_frame_skip = self.stats["frame_skipping_length"]
             self.stats["ep_frame_skip"].append(doc_frame_skip)
@@ -356,7 +356,7 @@ class Agent:
             if self.stats["ep_counter"] % self.config["save_episodes"] == 0:
                 self.save()
 
-            if (self.mode == Mode.Training and self.timesteps_since_update >=
+            if (self.mode == Mode.TRAINING and self.timesteps_since_update >=
                     self.config["update_episodes"]):
                 self.update()
 
@@ -412,7 +412,7 @@ class Agent:
             checkpoint["reward_normalizer"])
 
     def calculate_reward(self, reward, info, done):
-        if self.mode == Mode.Evaluation:
+        if self.mode == Mode.EVALUATION:
             return reward
         elif done:
             value = (reward * self.config["weighting_true_reward"]

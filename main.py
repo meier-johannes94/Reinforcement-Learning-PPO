@@ -37,11 +37,11 @@ def train_register_change(training_episodes, training_length, eval_length,
     max_episodes = int(np.round(
         training_episodes * (1 + eval_length / training_length), 0))
 
-    if opponent_type == OpponentType.Normal:
+    if opponent_type == OpponentType.NORMAL:
         env = lh.HockeyEnv()
-    elif opponent_type == OpponentType.Defending:
+    elif opponent_type == OpponentType.DEFENDING:
         env = lh.HockeyEnv(mode=lh.HockeyEnv.TRAIN_DEFENSE)
-    elif opponent_type == OpponentType.Shooting:
+    elif opponent_type == OpponentType.SHOOTING:
         env = lh.HockeyEnv(mode=lh.HockeyEnv.TRAIN_SHOOTING)
 
     if seed is not None:
@@ -83,9 +83,9 @@ def train_register_change(training_episodes, training_length, eval_length,
     current_frame_skip_frequency = frame_skip_frequency
 
     for i_episode in range(1, max_episodes+1):
-        if opponent_type == OpponentType.Defending:
+        if opponent_type == OpponentType.DEFENDING:
             env = lh.HockeyEnv(mode=lh.HockeyEnv.TRAIN_DEFENSE)
-        elif opponent_type == OpponentType.Shooting:
+        elif opponent_type == OpponentType.SHOOTING:
             env = lh.HockeyEnv(mode=lh.HockeyEnv.TRAIN_SHOOTING)
 
         # Sample opponent
@@ -145,8 +145,8 @@ def main():
     DEFAULT_policy_width = 128
     DEFAULT_value_depth = 4
     DEFAULT_value_width = 256
-    DEFAULT_activation_function = ActivationFunctions.Tanh  # TESTING
-    DEFAULT_initializer = Initializers.Orthogonal
+    DEFAULT_activation_function = ActivationFunctions.TANH  # TESTING
+    DEFAULT_initializer = Initializers.ORTHOGONAL
     DEFAULT_value_last_layer_scaler = 0.001
     DEFAULT_policy_last_layer_scaler = 0.01
     DEFAULT_minimum_std = 0.01
@@ -170,7 +170,7 @@ def main():
     DEFAULT_eps_clip = 0.25
     DEFAULT_K_epochs = 10
     DEFAULT_mini_batch_size = 128
-    DEFAULT_batch_mode = BatchModes.Shuffle_Transitions_Recompute_Advantages
+    DEFAULT_batch_mode = BatchModes.SHUFFLE_RECOMPUTE_ADVANTAGES
     DEFAULT_update_episodes = 20000
 
     DEFAULT_optimizer_lrs = 0.0003
@@ -183,7 +183,7 @@ def main():
     DEFAULT_max_timesteps_per_episode = 402
     DEFAULT_save_episode = DEFAULT_training_length + DEFAULT_eval_length
 
-    DEFAULT_opponent_type = OpponentType.Normal
+    DEFAULT_opponent_type = OpponentType.NORMAL
     DEFAULT_opponent_weak = False
     DEFAULT_timestep_loss = 0
 

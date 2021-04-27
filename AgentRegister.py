@@ -32,9 +32,9 @@ class AgentRegister():
         self.agents.append(new_agent)
 
     def sample_agent(self, mode):
-        if mode == Mode.Evaluation or len(self.agents) == 1:
+        if mode == Mode.EVALUATION or len(self.agents) == 1:
             return self.agents[0]
-        elif mode == Mode.Training:
+        elif mode == Mode.TRAINING:
             scores = np.asarray(self.scores)
             scores -= np.min(scores) - 1
             logs = np.log(scores)

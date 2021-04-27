@@ -14,22 +14,22 @@ MAX_STD = 15
 
 class ActivationFunctions(Enum):
     """Options that can be chosen as Activation functions within NN"""
-    Tanh = 1
+    TANH = 1
     ELU = 2
-    Swish = 3
+    SWISH = 3
 
 
 class Initializers(Enum):
     """Options forthat can be chosen for the initialization of the NN"""
-    LeCun_normal = 1
-    Glorot_normal = 2
-    Orthogonal = 3
-    Orthogonal14 = 4
+    LECUN_NORMAL = 1
+    GLOROT_NORMAL = 2
+    ORTHOGONAL = 3
+    ORTHOGONAL14 = 4
 
 
 class BatchModes(Enum):
-    Shuffle_Transitions = 1
-    Shuffle_Transitions_Recompute_Advantages = 2
+    SHUFFLE = 1
+    SHUFFLE_RECOMPUTE_ADVANTAGES = 2
 
 
 class Memory:
@@ -68,7 +68,7 @@ class ActorCritic(nn.Module):
         self.minimum_std = ZERO_STD if ZERO_STD > minimum_std else minimum_std
         self.initial_std = initial_std
 
-        if activation_function == ActivationFunctions.Tanh:
+        if activation_function == ActivationFunctions.TANH:
             Function = nn.Tanh
         elif activation_function == ActivationFunctions.ELU:
             Function = nn.ELU
@@ -91,11 +91,11 @@ class ActorCritic(nn.Module):
             policy_layers.append(nn.Linear(policy_width, action_dim * 2))
 
         # No scaling for LeCun_normal
-        if initializer == Initializers.Glorot_normal:
+        if initializer == Initializers.GLOROT_NORMAL:
             torch.nn.init.xavier_uniform_(policy_layers[-1].weight,
                                           gain=policy_last_layer_scaler)
-        elif (initializer == Initializers.Orthogonal
-                or initializer == Initializers.Orthogonal14):
+        elif (initializer == Initializers.ORTHOGONAL
+                or initializer == Initializers.ORTHOGONAL14):
             torch.nn.init.orthogonal_(
                 policy_layers[-1].weight, gain=policy_last_layer_scaler)
 
@@ -116,11 +116,11 @@ class ActorCritic(nn.Module):
         value_layers.append(nn.Linear(value_width, 1))
 
         # No scaling for LeCun_normal
-        if initializer == Initializers.Glorot_normal:
+        if initializer == Initializers.GLOROT_NORMAL:
             torch.nn.init.xavier_uniform_(value_layers[-1].weight,
                                           gain=value_last_layer_scaler)
-        elif (initializer == Initializers.Orthogonal or
-                initializer == Initializers.Orthogonal14):
+        elif (initializer == Initializers.ORTHOGONAL or
+                initializer == Initializers.ORTHOGONAL14):
             torch.nn.init.orthogonal_(value_layers[-1].weight,
                                       gain=value_last_layer_scaler)
 
@@ -130,11 +130,11 @@ class ActorCritic(nn.Module):
         for l in (policy_layers[:-2] + value_layers[:-1]):
             if isinstance(l, nn.Linear):
                 # LeCun Normal is already default
-                if initializer == Initializers.Glorot_normal:
+                if initializer == Initializers.GLOROT_NORMAL:
                     torch.nn.init.xavier_uniform_(l.weight)
-                elif initializer == Initializers.Orthogonal:
+                elif initializer == Initializers.ORTHOGONAL:
                     torch.nn.init.orthogonal_(l.weight)
-                elif initializer == Initializers.Orthogonal14:
+                elif initializer == Initializers.ORTHOGONAL14:
                     torch.nn.init.orthogonal_(l.weight, gain=1.4)
 
         # Define fixed stds
@@ -289,7 +289,7 @@ class PPO:
 
         for i in range(self.K_epochs):
             if (i == 0 or self.batch_mode ==
-                    BatchModes.Shuffle_Transitions_Recompute_Advantages):
+                    BatchModes.SHUFFLE_RECOMPUTE_ADVANTAGES):
                 advantages, returns = (
                     self.compute_advantages_and_returns(memory))
 
