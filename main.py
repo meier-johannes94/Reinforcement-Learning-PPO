@@ -1,6 +1,6 @@
 import torch
-from PPO import Activation_Functions, Initializers, Advantage_Calculation, Batch_Mode, PPO, Memory
-from Agent import Agent, Opponent_Type, Mode
+from PPO import ActivationFunctions, Initializers, BatchModes, PPO, Memory
+from Agent import Agent, OpponentType, Mode
 import gym
 import numpy as np
 import random
@@ -8,29 +8,40 @@ import laserhockey.hockey_env as lh
 import sys
 import os
 import pylab as plt
+from AgentRegister import AgentRegister
 
 
-def train_register_change(training_episodes, training_length, eval_length, max_timesteps_per_episode,
-                          gamma, K_epochs, eps_clip, eps_value_clip, policy_depth, policy_width, value_depth, value_width, activation_function,
-                          initializer, policy_last_layer_scaler,  value_last_layer_scaler, minimum_std,
-                          initial_std, handle_abandoned, reward_normalization, advantage_calculation, mini_batch_size, batch_mode, optimizer_lr,
-                          optimizer_weight_decay, optimizer_momentum, optimizer_epsilon, frame_skipping_length, value_normalization, advantage_normalization,
-                          input_normalization, update_episodes, save_episodes, opponent_type, opponent_weak, default_timestep_loss, frame_skip_frequency,
-                          input_clipping_max_abs_value, gradient_clipping, lbda,
-                          filename="", seed=None, load_filename=None, print_config=True, load_info="best"):
+def train_register_change(training_episodes, training_length, eval_length,
+                          max_timesteps_per_episode, gamma, K_epochs, eps_clip,
+                          eps_value_clip, policy_depth, policy_width,
+                          value_depth, value_width, activation_function,
+                          initializer, policy_last_layer_scaler,
+                          value_last_layer_scaler, minimum_std, initial_std,
+                          handle_abandoned, reward_normalization,
+                          mini_batch_size, batch_mode, optimizer_lr,
+                          optimizer_weight_decay, optimizer_momentum,
+                          optimizer_epsilon,
+                          frame_skipping_length, value_normalization,
+                          advantage_normalization, input_normalization,
+                          update_episodes, save_episodes, opponent_type,
+                          opponent_weak, default_timestep_loss,
+                          frame_skip_frequency, input_clipping_max_abs_value,
+                          gradient_clipping, lbda, filename="", seed=None,
+                          load_filename=None, print_config=True,
+                          load_info="best"):
 
     environment_name = 'Hockey-v0'
     state_dim = 18
     discrete = False
     action_dim = 4
-    max_episodes = int(np.round(training_episodes *
-                       (1 + eval_length / training_length), 0))
+    max_episodes = int(np.round(
+        training_episodes * (1 + eval_length / training_length), 0))
 
-    if opponent_type == Opponent_Type.Normal:
+    if opponent_type == OpponentType.Normal:
         env = lh.HockeyEnv()
-    elif opponent_type == Opponent_Type.Defending:
+    elif opponent_type == OpponentType.Defending:
         env = lh.HockeyEnv(mode=lh.HockeyEnv.TRAIN_DEFENSE)
-    elif opponent_type == Opponent_Type.Shooting:
+    elif opponent_type == OpponentType.Shooting:
         env = lh.HockeyEnv(mode=lh.HockeyEnv.TRAIN_SHOOTING)
 
     if seed is not None:
@@ -39,21 +50,26 @@ def train_register_change(training_episodes, training_length, eval_length, max_t
         np.random.seed(seed)
         random.seed(seed)
 
-    ar = Agent_Register(opponent_weak, opponent_type)
+    ar = AgentRegister(opponent_weak, opponent_type)
     agent = Agent(ar)
 
     if load_filename is not None:
+        print("Loaded")
         agent.load(environment_name, load_filename, load_info)
     else:
-        agent.configure(environment_name, state_dim, discrete, action_dim, max_timesteps_per_episode, filename, save_episodes,
-                        K_epochs, eps_clip,
-                        policy_depth, policy_width, value_depth, value_width, activation_function, minimum_std, initial_std,
-                        policy_last_layer_scaler, value_last_layer_scaler, initializer,
-                        advantage_calculation, lbda, eps_value_clip,
-                        mini_batch_size, batch_mode, update_episodes,
-                        gamma, handle_abandoned, frame_skipping_length,
-                        optimizer_lr, optimizer_weight_decay, optimizer_momentum, optimizer_epsilon,
-                        value_normalization, advantage_normalization, reward_normalization, input_normalization, gradient_clipping,
+        agent.configure(environment_name, state_dim, discrete, action_dim,
+                        max_timesteps_per_episode, filename, save_episodes,
+                        K_epochs, eps_clip, policy_depth, policy_width,
+                        value_depth, value_width, activation_function,
+                        minimum_std, initial_std, policy_last_layer_scaler,
+                        value_last_layer_scaler, initializer, lbda,
+                        eps_value_clip, mini_batch_size, batch_mode,
+                        update_episodes, gamma, handle_abandoned,
+                        frame_skipping_length, optimizer_lr,
+                        optimizer_weight_decay, optimizer_momentum,
+                        optimizer_epsilon, value_normalization,
+                        advantage_normalization, reward_normalization,
+                        input_normalization, gradient_clipping,
                         input_clipping_max_abs_value)
 
     agent.set_opponent(opponent_type, opponent_weak)
@@ -67,9 +83,9 @@ def train_register_change(training_episodes, training_length, eval_length, max_t
     current_frame_skip_frequency = frame_skip_frequency
 
     for i_episode in range(1, max_episodes+1):
-        if opponent_type == Opponent_Type.Defending:
+        if opponent_type == OpponentType.Defending:
             env = lh.HockeyEnv(mode=lh.HockeyEnv.TRAIN_DEFENSE)
-        elif opponent_type == Opponent_Type.Shooting:
+        elif opponent_type == OpponentType.Shooting:
             env = lh.HockeyEnv(mode=lh.HockeyEnv.TRAIN_SHOOTING)
 
         # Sample opponent
@@ -108,62 +124,6 @@ def train_register_change(training_episodes, training_length, eval_length, max_t
             agent.change_mode(True)  # Switch to training
 
 
-class Agent_Register():
-    def __init__(self, opponent_weak, opponent_mode):
-        self.env_name = 'Hockey-v0'
-
-        self.opponent_weak = opponent_weak
-        self.opponent_mode = opponent_mode
-
-        self.agents = [lh.BasicOpponent(opponent_weak)]
-        self.scores = []
-
-    def add_agent(self, filename, info):
-        if len(self.agents) > 20:
-            min_index = np.argmin(self.scores)
-            del self.scores[min_index]
-            del self.agents[min_index+1]
-
-        new_agent = Agent()
-        new_agent.load(self.env_name, filename, info)
-        new_agent.change_mode(False)
-
-        calculate_history_index = 1 if self.opponent_weak else 0
-        calculate_history_index += 2*(self.opponent_mode.value-1)
-
-        self.scores.append(
-            new_agent.statistics["episode_eval_results"][calculate_history_index][-1])
-        self.agents.append(new_agent)
-
-    def sample_agent(self, mode):
-        if mode == Mode.Evaluation or len(self.agents) == 1:
-            return self.agents[0]
-        elif mode == Mode.Training:
-            scores = np.asarray(self.scores)
-            scores -= np.min(scores) - 1
-            logs = np.log(scores)
-
-            prob_basic_agent = 0.8
-            if len(self.agents) >= 3:
-                prob_basic_agent = 0.6
-            elif len(self.agents) >= 6:
-                prob_basic_agent = 0.30
-            elif len(self.agents) >= 10:
-                prob_basic_agent = 0.20
-            elif len(self.agents) >= 15:
-                prob_basic_agent = 0.10
-
-            p = (1-prob_basic_agent) * self.softmax(logs)
-            p = np.insert(p, 0, prob_basic_agent)
-            p /= p.sum()
-            agent_index = np.random.choice(np.arange(0, len(self.agents)), p=p)
-            return self.agents[agent_index]
-
-    def softmax(self, x):
-        e_x = np.exp(x - np.max(x))
-        return e_x / e_x.sum()
-
-
 class HiddenPrints:
     def __enter__(self):
         self._original_stdout = sys.stdout
@@ -172,3 +132,75 @@ class HiddenPrints:
     def __exit__(self, exc_type, exc_val, exc_tb):
         sys.stdout.close()
         sys.stdout = self._original_stdout
+
+
+def main():
+    import os
+    os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
+    from main import train_register_change
+    from PPO import ActivationFunctions, Initializers, BatchModes
+    from Agent import OpponentType
+
+    DEFAULT_policy_depth = 2
+    DEFAULT_policy_width = 128
+    DEFAULT_value_depth = 4
+    DEFAULT_value_width = 256
+    DEFAULT_activation_function = ActivationFunctions.Tanh  # TESTING
+    DEFAULT_initializer = Initializers.Orthogonal
+    DEFAULT_value_last_layer_scaler = 0.001
+    DEFAULT_policy_last_layer_scaler = 0.01
+    DEFAULT_minimum_std = 0.01
+    DEFAULT_initial_std = 0.5
+
+    DEFAULT_input_clipping_max_abs_value = 10
+    DEFAULT_gradient_clipping = 10
+    DEFAULT_reward_normalizations = False
+    DEFAULT_value_normalization = False
+    DEFAULT_advantage_normalization = False
+    DEFAULT_input_normalization = True
+
+    DEFAULT_gamma = 0.95
+    DEFAULT_handle_abandoned = True
+    DEFAULT_frame_skipping = 1
+    DEFAULT_frame_skip_interval = None
+
+    DEFAULT_lbda = 0.95
+    DEFAULT_eps_value_clip = None
+
+    DEFAULT_eps_clip = 0.25
+    DEFAULT_K_epochs = 10
+    DEFAULT_mini_batch_size = 128
+    DEFAULT_batch_mode = BatchModes.Shuffle_Transitions_Recompute_Advantages
+    DEFAULT_update_episodes = 20000
+
+    DEFAULT_optimizer_lrs = 0.0003
+    DEFAULT_optimizer_weight_decay = 0.0
+    DEFAULT_optimizer_momentum = 0.9
+    DEFAULT_optimizer_epsilon = 1e-8
+
+    DEFAULT_training_length = 10
+    DEFAULT_eval_length = 4
+    DEFAULT_max_timesteps_per_episode = 402
+    DEFAULT_save_episode = DEFAULT_training_length + DEFAULT_eval_length
+
+    DEFAULT_opponent_type = OpponentType.Normal
+    DEFAULT_opponent_weak = False
+    DEFAULT_timestep_loss = 0
+
+    DEFAULT_max_training_episodes = 40000
+
+    seed_1 = 123456
+    title = save_filename = "Train report settings"
+
+    train_register_change(DEFAULT_max_training_episodes, DEFAULT_training_length, DEFAULT_eval_length, DEFAULT_max_timesteps_per_episode,
+                          DEFAULT_gamma, DEFAULT_K_epochs, DEFAULT_eps_clip, DEFAULT_eps_value_clip, DEFAULT_policy_depth, DEFAULT_policy_width, DEFAULT_value_depth, DEFAULT_value_width, DEFAULT_activation_function,
+                          DEFAULT_initializer, DEFAULT_policy_last_layer_scaler, DEFAULT_value_last_layer_scaler, DEFAULT_minimum_std,
+                          DEFAULT_initial_std, DEFAULT_handle_abandoned, DEFAULT_reward_normalizations, DEFAULT_mini_batch_size, DEFAULT_batch_mode, DEFAULT_optimizer_lrs,
+                          DEFAULT_optimizer_weight_decay, DEFAULT_optimizer_momentum, DEFAULT_optimizer_epsilon, DEFAULT_frame_skipping, DEFAULT_value_normalization, DEFAULT_advantage_normalization,
+                          DEFAULT_input_normalization, DEFAULT_update_episodes, DEFAULT_save_episode, DEFAULT_opponent_type,
+                          DEFAULT_opponent_weak, DEFAULT_timestep_loss, DEFAULT_frame_skip_interval,
+                          DEFAULT_input_clipping_max_abs_value, DEFAULT_gradient_clipping, DEFAULT_lbda, save_filename, seed_1, print_config=False, load_info="")
+
+
+if __name__ == "__main__":
+    main()
