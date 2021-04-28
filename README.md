@@ -1,5 +1,5 @@
-# Reinforcement-Learning-PPO
-Implementation of the PPO Algorithm to control an agent in the hockey environment. 
+# Reinforcement-Learning-PPO (PyTorch)
+Implementation of the PPO Algorithm  to control an agent in the hockey environment. 
 The project was done as part of the Reinforcement Learning course at the University of Tübingen in WS 20/21. 
 
 ## Hockey environment
