@@ -76,7 +76,7 @@ class ActorCritic(nn.Module):
         if discrete:
             policy_layers.append(nn.Linear(policy_width, action_dim))
         else:
-            policy_layers.append(nn.Linear(policy_width, action_dim))
+            policy_layers.append(nn.Linear(policy_width, 2*action_dim))
 
         # No scaling for LeCun_normal
         if initializer == Initializers.GLOROT_NORMAL:
@@ -364,16 +364,6 @@ class PPO:
         2.3.3. Returns_t = GAE + V_t
         3. Advantage = Returns - V = GAE
         """
-
-        delta = (reward
-                 + (self._gamma**self._frame_skipping_length
-                    * nextValue*mask[step_reverse_counter])
-                 - values[step])
-        gae = delta + (self._gamma ** self._frame_skipping_length
-                       * self._lbda
-                       * mask[step_reverse_counter]
-                       * gae)
-
         states = torch.stack(memory.states).to(device)
         values = self.policy.critic(states).flatten().float().detach().cpu()
         values = values.numpy()

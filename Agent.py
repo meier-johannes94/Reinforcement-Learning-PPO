@@ -40,13 +40,15 @@ class Agent:
     loading and adding to checkpoint list in one class.
 
     Attributes:
+        stats : dict
+            Current statistics of the agent
         mode : Mode
             Current mode of the agent (Training or Evaluation)
         config : dict
             Settings associated with this agent
-        op_type : OpponentType
+        opp_type : OpponentType
             Current opponent type of evaluation / training
-        op_weak : bool
+        opp_weak : bool
             Current basic opponent is weak / normal
         frame_skipping_activated : bool
             Frame-skipping is activated in this episode
@@ -293,7 +295,7 @@ class Agent:
             'learning_ep_counter': 1,
 
             'ep_last_training': 1,
-            'episode_last_switch_to_evaluation': 0,
+            'ep_last_switch_to_evaluation': 0,
 
             'episode_mode': [],
             'ep_rewards_calc': [],
@@ -502,21 +504,20 @@ class Agent:
 
             self.frame_skipping_activated = False
             self._mode = Mode.EVALUATION
-            self._stats["episode_last_switch_to_evaluation"] = \
+            self._stats["ep_last_switch_to_evaluation"] = \
                 self._stats["ep_counter"]
 
         elif self._mode == Mode.EVALUATION:
             self._compute_statistics()
 
             self._mode = Mode.TRAINING
-            self._stats["ep_last_training"] = \
-                self._stats["ep_counter"]
+            self._stats["ep_last_training"] = self._stats["ep_counter"]
 
     def _compute_statistics(self):
 
         train_start = self._stats["ep_last_training"]-1
-        train_end = self._stats["episode_last_switch_to_evaluation"]-1  # -2+1
-        eval_start = self._stats["episode_last_switch_to_evaluation"]-1
+        train_end = self._stats["ep_last_switch_to_evaluation"]-1  # -2+1
+        eval_start = self._stats["ep_last_switch_to_evaluation"]-1
         eval_end = len(self._stats["ep_rewards_calc"])  # -1+1=0
 
         train_rewards_arr = np.asarray(self._stats["ep_rewards_true"])[
@@ -646,12 +647,74 @@ class Agent:
 
     @property
     def config(self):
-        """Readonly. Configuration of the model.
+        """Readonly. Configuration of the model. For field description 
+        see constructor. 
 
         Returns:
             Dict:
         """
         return self._config
+
+    @property
+    def stats(self):
+        """Readonly. Current Statistics of the model.
+
+        Elements:
+            global_timestep_counter : int
+                A counter of all timesteps over all episodes
+                (training + evaluation)
+            ep_counter : int
+                Number of total training and evaluation episodes
+            learning_ep_counter : int
+                Number of training episodes
+            ep_last_training : int
+                Number of first episode, where the last training began.
+            ep_last_switch_to_evaluation : int
+                Number of the first episode, where the last evaluation 
+                began.
+            episode_mode : arr
+                Mode (Training, Evaluation) for every episode
+            ep_rewards_calc : arr
+                Cumulative synthetic reward for each episode
+                calculated from the feedback of the environment taking
+                into accounts te weights
+            ep_rewards_true : arr
+                Cumulative reward for each episode as return by the
+                environment
+            ep_closeness_puck : arr
+                Cumulative info[closeness_to_puck] values for each
+                episode.
+            ep_touch_puck : arr
+                Cumulative info[reward_touch_puck] for each episode
+            ep_puck_direction : arr
+                Cumulative info[reward_puck_direction] for each episode
+            ep_length : arr
+                Number of timesteps for each episode
+            ep_wins : int
+                Win (1), Lost (-1), Draw(0) for each episode
+            ep_eval_results: Arr
+                History over all evaluation performances per
+                category.
+                [0] = Normal opponent, Defending Mode
+                [1] = Weak opponent, Defending Mode
+                [2] = Normal opponent, Shooting Mode
+                [3] = Weak opponent, Shooting Mode
+                [4] = Normal opponent, Normal Mode
+                [5] = Weak opponent, Normal Mode
+            ep_opp_weak : Arr
+                For each episode (True, False), whether the opponent of
+                that episode was weak or not weak. Also saved for
+                playing against own checkpoints (Warning: Misleading).
+            ep_frame_skip : Arr
+                For each episode Information. Value > 1 indicate that
+                frame skipping was activated in tat episode. The number
+                represents the frame skipping length over te entire
+                episode.
+
+        Returns:
+            Dict:
+        """
+        return self._stats
 
     @property
     def mode(self):
@@ -663,7 +726,7 @@ class Agent:
         return self._mode
 
     @property
-    def op_type(self):
+    def opp_type(self):
         """Opponent Type
 
         Returns:
@@ -672,7 +735,7 @@ class Agent:
         return self._current_opp_type
 
     @op_type.setter
-    def op_type(self, value):
+    def opp_type(self, value):
         """Opponent Type
 
         Args:
@@ -686,7 +749,7 @@ class Agent:
         self._current_opp_type = value
 
     @property
-    def op_weak(self):
+    def opp_weak(self):
         """Weak or normal basic opponent
 
         Returns:
@@ -694,8 +757,8 @@ class Agent:
         """
         return self._current_opp_weak
 
-    @op_weak.setter
-    def op_weak(self, value):
+    @opp_weak.setter
+    def opp_weak(self, value):
         """Weak or normal basic opponent
 
         Args:

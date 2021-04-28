@@ -55,14 +55,16 @@ def main():
     seed_1 = 123456
     title = save_filename = "Train report settings"
 
-    train(DEFAULT_max_training_episodes, DEFAULT_training_length, DEFAULT_eval_length, DEFAULT_episode_max_steps,
-          DEFAULT_gamma, DEFAULT_K_epochs, DEFAULT_eps_clip, DEFAULT_policy_depth, DEFAULT_policy_width, DEFAULT_value_depth, DEFAULT_value_width, DEFAULT_activation_function,
-          DEFAULT_initializer, DEFAULT_policy_last_layer_scaler, DEFAULT_value_last_layer_scaler, DEFAULT_minimum_std,
-          DEFAULT_initial_std, DEFAULT_handle_abandoned, DEFAULT_reward_normalizations, DEFAULT_mini_batch_size, DEFAULT_batch_mode, DEFAULT_optimizer_lrs,
-          DEFAULT_optimizer_weight_decay, DEFAULT_optimizer_momentum, DEFAULT_optimizer_epsilon, DEFAULT_frame_skipping_length, DEFAULT_advantage_normalization,
-          DEFAULT_input_normalization, DEFAULT_update_timesteps, DEFAULT_save_episode, DEFAULT_opponent_type,
-          DEFAULT_opponent_weak, DEFAULT_timestep_loss, DEFAULT_frame_skipping_frequency,
-          DEFAULT_input_clipping_max_abs_value, DEFAULT_gradient_clipping, DEFAULT_lbda, save_filename, seed_1, print_config=True, load_info="")
+    # train(DEFAULT_max_training_episodes, DEFAULT_training_length, DEFAULT_eval_length, DEFAULT_episode_max_steps,
+    #      DEFAULT_gamma, DEFAULT_K_epochs, DEFAULT_eps_clip, DEFAULT_policy_depth, DEFAULT_policy_width, DEFAULT_value_depth, DEFAULT_value_width, DEFAULT_activation_function,
+    #      DEFAULT_initializer, DEFAULT_policy_last_layer_scaler, DEFAULT_value_last_layer_scaler, DEFAULT_minimum_std,
+    #      DEFAULT_initial_std, DEFAULT_handle_abandoned, DEFAULT_reward_normalizations, DEFAULT_mini_batch_size, DEFAULT_batch_mode, DEFAULT_optimizer_lrs,
+    #      DEFAULT_optimizer_weight_decay, DEFAULT_optimizer_momentum, DEFAULT_optimizer_epsilon, DEFAULT_frame_skipping_length, DEFAULT_advantage_normalization,
+    #      DEFAULT_input_normalization, DEFAULT_update_timesteps, DEFAULT_save_episode, DEFAULT_opponent_type,
+    #      DEFAULT_opponent_weak, DEFAULT_timestep_loss, DEFAULT_frame_skipping_frequency,
+    #      DEFAULT_input_clipping_max_abs_value, DEFAULT_gradient_clipping, DEFAULT_lbda, save_filename, seed_1, print_config=True, load_info="")
+    train(DEFAULT_max_training_episodes, DEFAULT_training_length, DEFAULT_eval_length, DEFAULT_save_episode,
+          filename=save_filename, seed=seed_1, print_config=True, load_info="")
 
 
 if __name__ == "__main__":

@@ -27,8 +27,6 @@ class AgentRegister():
             opponent_mode (OpponentType):
                 Definition of the OpponentType for statistical reasons.
         """
-        self._env_name = 'Hockey-v0'
-
         self._opponent_weak = opponent_weak
         self._opponent_mode = opponent_mode
 
@@ -58,15 +56,14 @@ class AgentRegister():
             del self._agents[min_index+1]
 
         new_agent = Agent()
-        new_agent.load(self._env_name, filename, info)
+        new_agent.load(filename, info)
         new_agent.change_mode(False)
 
         calculate_history_index = 1 if self._opponent_weak else 0
         calculate_history_index += 2*(self._opponent_mode.value-1)
 
-        self._scores.append(
-            new_agent.statistics["episode_eval_results"]
-            [calculate_history_index][-1])
+        self._scores.append(new_agent.stats["ep_eval_results"]
+                            [calculate_history_index][-1])
         self._agents.append(new_agent)
 
     def sample_agent(self, mode):
@@ -79,7 +76,7 @@ class AgentRegister():
          3- 5 list entries => 60% probability for basic agent
          6- 9 list entries => 30% probability for basic agent
         10-14 list entries => 20% probability for basic agent
-        >15 list entries => 10% probability for basic agent
+          >15 list entries => 10% probability for basic agent
 
         The remaining probability is distributed among the single agents
         using softmax on their evaluation performances.
