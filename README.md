@@ -21,7 +21,7 @@ Because PPO is a policy gradient algorithm, the agent's policy is modeled explic
 * To transform the actions into a continuous domain a Multivariate Normal Distribution is used
 * To ensure that the actions are within [-1,1] we use Tanh for transformation
 * Gradient clipping, input normalization, reward normalization is also implemented. For normalization the Welford online algorithm is used. 
-* For the implementation of the neural network PyTorch is used
+* For the implementation of the neural networks PyTorch is used
 * The implementation does not use multitasking
 * The whole process of training is split up into alternating periods of training and evaluation. Evaluation is always against the basic opponent and doesn't use exploration. If the agent achieves a record high evaluation performance his current checkpoint is added to a list of possible opponents. During training the next opponent (player2) is then sampled from the list of old checkpoints and the basic opponent provided by the laser hockey package. This prevents from overfitting the basic agent. 
 
