@@ -29,23 +29,27 @@ class Initializers(Enum):
 
 
 class BatchModes(Enum):
+    """For SHUFFLE_RECOMPUTE_ADVANTAGES the advantages and returns
+    are shuffled for every batch at the beginning of the update
+    process.  For SHUFFLE this only happens for the first batch."""
     SHUFFLE = 1
     SHUFFLE_RECOMPUTE_ADVANTAGES = 2
 
 
-# Source: https://github.com/nikhilbarhate99/PPO-PyTorch
 class ActorCritic(nn.Module):
+    """Source: https://github.com/nikhilbarhate99/PPO-PyTorch"""
+
     def __init__(self, state_dim, discrete, action_dim, policy_depth,
                  policy_width, value_depth, value_width, activation_function,
                  minimum_std, initial_std, initializer,
                  policy_last_layer_scaler, value_last_layer_scaler):
-
         super(ActorCritic, self).__init__()
 
         self._discrete = discrete
         self._action_dim = action_dim
         self._minimum_std = ZERO_STD if ZERO_STD > minimum_std else minimum_std
 
+        # Activation functions used for actor and critic network
         if activation_function == ActivationFunctions.TANH:
             Function = nn.Tanh
         elif activation_function == ActivationFunctions.ELU:
@@ -54,6 +58,12 @@ class ActorCritic(nn.Module):
             Function = nn.SiLU
 
         # Initialize policy network
+        # 1. Hidden layers are generated dynamically depending on
+        #    parameters policy_depth, policy_width. The last hidden
+        #    layer has the width of the action dimension.
+        # 2. Initialize dynamically
+        # 3. If discrete we need Softmax at the end to get a probability
+        #    for each action dimension
         policy_layers = []
 
         policy_layers.append(nn.Linear(state_dim, policy_width))
@@ -66,7 +76,7 @@ class ActorCritic(nn.Module):
         if discrete:
             policy_layers.append(nn.Linear(policy_width, action_dim))
         else:
-            policy_layers.append(nn.Linear(policy_width, action_dim * 2))
+            policy_layers.append(nn.Linear(policy_width, action_dim))
 
         # No scaling for LeCun_normal
         if initializer == Initializers.GLOROT_NORMAL:
@@ -81,7 +91,11 @@ class ActorCritic(nn.Module):
             policy_layers.append(nn.Softmax(dim=-1))
         self.actor = nn.Sequential(*policy_layers)
 
-        # Initialize value newtork
+        # Initialize policy network
+        # 1. Hidden layers are generated dynamically. The last layer is
+        #    1, because the value output is just a scalar.
+        # 2. Initialize dynamically
+
         value_layers = []
 
         value_layers.append(nn.Linear(state_dim, value_width))
@@ -115,29 +129,27 @@ class ActorCritic(nn.Module):
                 elif initializer == Initializers.ORTHOGONAL14:
                     torch.nn.init.orthogonal_(l.weight, gain=1.4)
 
-        # Define fixed stds
+        # Action std parameter indepdenent of observations.
         self._action_std_log = torch.nn.Parameter(
             np.log(initial_std)
             * torch.ones(action_dim, dtype=torch.float32, device=device))
+        # Very small std parameter in case of evaluation.
         self._evaluation_std = (
             ZERO_STD
             * torch.ones((action_dim,), dtype=torch.float32, device=device))
 
-    def forward(self):
-        raise NotImplementedError
-
-    def compute_action_distribution(self, state, evaluation):
+    def forward(self, state, evaluation):
+        """Compute action distribution"""
         if self._discrete:
             action_probs = self.actor(state)
             return Categorical(action_probs)
-
         else:
             network_output = self.actor(state)
             action_mean = network_output[:, 0:self._action_dim]
 
-            if evaluation:
+            if evaluation:  # Mode.Evaluation: Fixed std
                 action_std = self._evaluation_std.detach()
-            else:
+            else:  # Mode.Training: Use parametric std + clip
                 action_std = torch.exp(
                     self._action_std_log).expand_as(action_mean)
                 action_std = torch.clamp(
@@ -147,15 +159,19 @@ class ActorCritic(nn.Module):
 
             return MultivariateNormal(action_mean, cov_mat)
 
-    def act(self, state, memory=None):  # Evaluation = (Memory is None)
+    def act(self, state, memory=None):
+        # Memory is None => Evaluation
+        # Memory is not None => Training
         evaluation = memory is None
 
-        dist = self.compute_action_distribution(state, evaluation)
+        dist = self(state, evaluation)
         action = dist.sample()
 
         if evaluation:
             torch.no_grad()
         else:
+            # Save taken action, states, log probabilities for model
+            # update
             action_logprob = dist.log_prob(action)
             memory.states.append(state)
             memory.actions.append(action)
@@ -164,7 +180,7 @@ class ActorCritic(nn.Module):
         return action.cpu().numpy()
 
     def evaluate(self, state, action):
-        dist = self.compute_action_distribution(state, False)
+        dist = self(state, False)
 
         action_logprobs = dist.log_prob(action)
         dist_entropy = dist.entropy()
@@ -246,6 +262,15 @@ class PPO:
             return np.tanh(self.policy_old.act(state, memory).flatten())
 
     def update(self, memory):
+        """
+        1. Reward normalization (optional)
+        2. Convert to tensor
+        3. For each epoch
+        3.1 For each batch
+        3.1.1 Advantage normalization (optional)
+        3.1.2 PPO Update
+        3.2. Copy current policy to old policy
+        """
         if self._reward_normalization:
             new_rewards = np.zeros(len(memory.rewards))
             for i, r in enumerate(memory.rewards):
@@ -266,6 +291,7 @@ class PPO:
                                          1).to(device).detach()
 
         for i in range(self._K_epochs):
+            # Recompute advantages, returns
             if (i == 0 or self._batch_mode ==
                     BatchModes.SHUFFLE_RECOMPUTE_ADVANTAGES):
                 advantages, returns = (
@@ -283,11 +309,12 @@ class PPO:
                     advantages_ = torch.from_numpy(
                         new_advantages).float().to(device)
 
-                # Evaluating old actions and values :
+                # Evaluating old actions and values under current policy:
                 logprobs, state_values, dist_entropy = self.policy.evaluate(
                     states_, actions_)
 
-                # Finding the ratio (pi_theta / pi_theta__old):
+                # Calculate the change in probability.
+                # Ratio more numerically stable.
                 ratios = torch.exp(logprobs - old_logprobs_)
 
                 # Finding Surrogate Loss:
@@ -295,13 +322,15 @@ class PPO:
                 surr_policy_2 = torch.clamp(
                     ratios, 1-self._eps_clip, 1+self._eps_clip) * advantages_
 
+                # Calculate value loss
                 value_loss = self._mse_loss(state_values, returns_)
 
+                # Combine the surrogate policy loss and value loss
                 loss = (-torch.min(surr_policy_1, surr_policy_2)
                         + 0.5*value_loss
                         - 0.01*dist_entropy)
 
-                # take gradient step
+                # Take gradient step
                 self.optimizer.zero_grad()
                 loss.mean().backward()
                 if self._gradient_clipping is not None:
@@ -309,7 +338,7 @@ class PPO:
                         self.policy.parameters(), self._gradient_clipping)
                 self.optimizer.step()
 
-        # Copy new weights into old policy:
+        # Copy new weights into old policy after each epoch:
         self.policy_old.load_state_dict(self.policy.state_dict())
 
     # Source: https://github.com/higgsfield/RL-Adventure-2/
@@ -324,6 +353,27 @@ class PPO:
                    advantages[rand_ids])
 
     def compute_advantages_and_returns(self, memory):
+        """Compute Advantages, Returns using GAE
+        1. Calculate values (V_t) of visited states
+        2. For each episode
+        2.1. Delta = 0
+        2.2. GAE = 0
+        2.3 For each timeste t in the episode (from last to first):
+        2.3.1. Delta = Reward_t + Gamma * V_{t+1} - V_t
+        2.3.2. GAE = Delta + Gamma * Lambda * GAE
+        2.3.3. Returns_t = GAE + V_t
+        3. Advantage = Returns - V = GAE
+        """
+
+        delta = (reward
+                 + (self._gamma**self._frame_skipping_length
+                    * nextValue*mask[step_reverse_counter])
+                 - values[step])
+        gae = delta + (self._gamma ** self._frame_skipping_length
+                       * self._lbda
+                       * mask[step_reverse_counter]
+                       * gae)
+
         states = torch.stack(memory.states).to(device)
         values = self.policy.critic(states).flatten().float().detach().cpu()
         values = values.numpy()
