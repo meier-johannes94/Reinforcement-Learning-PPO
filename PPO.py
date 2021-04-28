@@ -42,10 +42,9 @@ class ActorCritic(nn.Module):
 
         super(ActorCritic, self).__init__()
 
-        self.discrete = discrete
-        self.action_dim = action_dim
-        self.minimum_std = ZERO_STD if ZERO_STD > minimum_std else minimum_std
-        self.initial_std = initial_std
+        self._discrete = discrete
+        self._action_dim = action_dim
+        self._minimum_std = ZERO_STD if ZERO_STD > minimum_std else minimum_std
 
         if activation_function == ActivationFunctions.TANH:
             Function = nn.Tanh
@@ -73,8 +72,8 @@ class ActorCritic(nn.Module):
         if initializer == Initializers.GLOROT_NORMAL:
             torch.nn.init.xavier_uniform_(policy_layers[-1].weight,
                                           gain=policy_last_layer_scaler)
-        elif (initializer == Initializers.ORTHOGONAL
-                or initializer == Initializers.ORTHOGONAL14):
+        elif (initializer == Initializers.ORTHOGONAL or
+              initializer == Initializers.ORTHOGONAL14):
             torch.nn.init.orthogonal_(
                 policy_layers[-1].weight, gain=policy_last_layer_scaler)
 
@@ -117,10 +116,10 @@ class ActorCritic(nn.Module):
                     torch.nn.init.orthogonal_(l.weight, gain=1.4)
 
         # Define fixed stds
-        self.action_std_log = torch.nn.Parameter(
+        self._action_std_log = torch.nn.Parameter(
             np.log(initial_std)
             * torch.ones(action_dim, dtype=torch.float32, device=device))
-        self.evaluation_std = (
+        self._evaluation_std = (
             ZERO_STD
             * torch.ones((action_dim,), dtype=torch.float32, device=device))
 
@@ -128,20 +127,21 @@ class ActorCritic(nn.Module):
         raise NotImplementedError
 
     def compute_action_distribution(self, state, evaluation):
-        if self.discrete:
+        if self._discrete:
             action_probs = self.actor(state)
             return Categorical(action_probs)
 
         else:
             network_output = self.actor(state)
-            action_mean = network_output[:, 0:self.action_dim]
+            action_mean = network_output[:, 0:self._action_dim]
 
             if evaluation:
-                action_std = self.evaluation_std.detach()
+                action_std = self._evaluation_std.detach()
             else:
                 action_std = torch.exp(
-                    self.action_std_log).expand_as(action_mean)
-                action_std = torch.clamp(action_std, self.minimum_std, MAX_STD)
+                    self._action_std_log).expand_as(action_mean)
+                action_std = torch.clamp(
+                    action_std, self._minimum_std, MAX_STD)
 
             cov_mat = torch.diag_embed(action_std**2)
 
@@ -178,33 +178,37 @@ class PPO:
                  policy_depth, policy_width, value_depth, value_width,
                  activation_function, minimum_std, initial_std,
                  policy_last_layer_scaler, value_last_layer_scaler,
-                 initializer, lbda, eps_value_clip,
-                 mini_batch_size, batch_mode, gamma, handle_abandoned,
-                 frame_skipping_length, optimizer_lr, optimizer_weight_decay,
-                 optimizer_momentum, optimizer_epsilon, value_normalization,
+                 initializer, lbda, mini_batch_size, batch_mode, gamma,
+                 handle_abandoned, frame_skipping_length, optimizer_lr,
+                 optimizer_weight_decay, optimizer_momentum, optimizer_epsilon,
                  advantage_normalization, reward_normalization,
                  input_normalization, gradient_clipping,
                  input_clipping_max_abs_value):
 
-        self.discrete = discrete
+        self._discrete = discrete
 
-        self.K_epochs = K_epochs
-        self.eps_clip = eps_clip
+        self._K_epochs = K_epochs
+        self._eps_clip = eps_clip
 
-        self.lbda = lbda
+        self._lbda = lbda
 
-        self.mini_batch_size = mini_batch_size
-        self.batch_mode = batch_mode
+        self._mini_batch_size = mini_batch_size
+        self._batch_mode = batch_mode
 
-        self.gamma = gamma
-        self.handle_abandoned = handle_abandoned
-        self.frame_skipping_length = frame_skipping_length
+        self._gamma = gamma
+        self._handle_abandoned = handle_abandoned
+        self._frame_skipping_length = frame_skipping_length
 
-        self.advantage_normalization = advantage_normalization
-        self.reward_normalization = reward_normalization
-        self.input_normalization = input_normalization
-        self.gradient_clipping = gradient_clipping
-        self.input_clipping_max_abs_value = input_clipping_max_abs_value
+        self._advantage_normalization = advantage_normalization
+        self._reward_normalization = reward_normalization
+        self._input_normalization = input_normalization
+        self.input_normalizer = Normalizer(state_dim,
+                                           input_clipping_max_abs_value)
+        self.advantage_normalizer = Normalizer(1, 20)
+        self.reward_normalizer = Normalizer(1, 20)
+
+        self._gradient_clipping = gradient_clipping
+        self._input_clipping_max_abs_value = input_clipping_max_abs_value
 
         self.policy = ActorCritic(state_dim, discrete, action_dim,
                                   policy_depth, policy_width, value_depth,
@@ -227,18 +231,13 @@ class PPO:
                                           betas=(optimizer_momentum, 0.999),
                                           eps=optimizer_epsilon)
 
-        self.MseLoss = nn.MSELoss()
-        self.input_normalizer = Normalizer(state_dim,
-                                           input_clipping_max_abs_value)
-
-        self.advantage_normalizer = Normalizer(1, 20)
-        self.reward_normalizer = Normalizer(1, 20)
+        self._mse_loss = nn.MSELoss()
 
     def act(self, state, memory=None):
-        if self.input_normalization:
+        if self._input_normalization:
             state = self.input_normalizer.add_and_normalize(state)
 
-        if self.discrete:
+        if self._discrete:
             state = torch.from_numpy(state).float().to(device)
             return self.policy_old.act(state, memory)
         else:
@@ -247,14 +246,14 @@ class PPO:
             return np.tanh(self.policy_old.act(state, memory).flatten())
 
     def update(self, memory):
-        if self.reward_normalization:
+        if self._reward_normalization:
             new_rewards = np.zeros(len(memory.rewards))
             for i, r in enumerate(memory.rewards):
                 new_rewards[i] = self.reward_normalizer.add_and_normalize(r)
             memory.rewards = new_rewards.tolist()
 
         # convert to tensor
-        if self.discrete:
+        if self._discrete:
             old_states = torch.stack(memory.states).to(device).detach()
             old_actions = torch.stack(memory.actions).to(device).detach()
             old_logprobs = torch.stack(memory.logprobs).to(device).detach()
@@ -266,8 +265,8 @@ class PPO:
             old_logprobs = torch.squeeze(torch.stack(memory.logprobs),
                                          1).to(device).detach()
 
-        for i in range(self.K_epochs):
-            if (i == 0 or self.batch_mode ==
+        for i in range(self._K_epochs):
+            if (i == 0 or self._batch_mode ==
                     BatchModes.SHUFFLE_RECOMPUTE_ADVANTAGES):
                 advantages, returns = (
                     self.compute_advantages_and_returns(memory))
@@ -276,7 +275,7 @@ class PPO:
                 self.generate_batch_iterations(old_states, old_actions,
                                                old_logprobs, returns,
                                                advantages):
-                if self.advantage_normalization:
+                if self._advantage_normalization:
                     new_advantages = np.zeros(len(advantages_))
                     for i, adv in enumerate(advantages_):
                         new_advantages[i] = (
@@ -294,9 +293,9 @@ class PPO:
                 # Finding Surrogate Loss:
                 surr_policy_1 = ratios * advantages_
                 surr_policy_2 = torch.clamp(
-                    ratios, 1-self.eps_clip, 1+self.eps_clip) * advantages_
+                    ratios, 1-self._eps_clip, 1+self._eps_clip) * advantages_
 
-                value_loss = self.MseLoss(state_values, returns_)
+                value_loss = self._mse_loss(state_values, returns_)
 
                 loss = (-torch.min(surr_policy_1, surr_policy_2)
                         + 0.5*value_loss
@@ -305,20 +304,21 @@ class PPO:
                 # take gradient step
                 self.optimizer.zero_grad()
                 loss.mean().backward()
-                if self.gradient_clipping is not None:
+                if self._gradient_clipping is not None:
                     torch.nn.utils.clip_grad_norm_(
-                        self.policy.parameters(), self.gradient_clipping)
+                        self.policy.parameters(), self._gradient_clipping)
                 self.optimizer.step()
 
         # Copy new weights into old policy:
         self.policy_old.load_state_dict(self.policy.state_dict())
 
-    # Source: https://github.com/higgsfield/RL-Adventure-2/blob/master/3.ppo.ipynb
+    # Source: https://github.com/higgsfield/RL-Adventure-2/
+    # blob/master/3.ppo.ipynb
     def generate_batch_iterations(self, states, actions, log_probs, returns,
                                   advantages):
         batch_size = states.size(0)
-        for _ in range(batch_size // self.mini_batch_size):
-            rand_ids = np.random.randint(0, batch_size, self.mini_batch_size)
+        for _ in range(batch_size // self._mini_batch_size):
+            rand_ids = np.random.randint(0, batch_size, self._mini_batch_size)
             yield (states[rand_ids, :], actions[rand_ids, :],
                    log_probs[rand_ids], returns[rand_ids],
                    advantages[rand_ids])
@@ -355,7 +355,7 @@ class PPO:
 
             reward = memory.rewards[step]
 
-            if last_step and not self.handle_abandoned:
+            if last_step and not self._handle_abandoned:
                 if len(memory.winners) >= reverse_index+1:
                     if memory.winners[reverse_index] == 0:
                         reward = values[step]
@@ -363,17 +363,16 @@ class PPO:
                     reward = values[step]
 
             delta = (reward
-                     + (self.gamma**self.frame_skipping_length
+                     + (self._gamma**self._frame_skipping_length
                         * nextValue*mask[step_reverse_counter])
                      - values[step])
-            gae = delta + (self.gamma ** self.frame_skipping_length
-                           * self.lbda
+            gae = delta + (self._gamma ** self._frame_skipping_length
+                           * self._lbda
                            * mask[step_reverse_counter]
                            * gae)
 
             returns[index] = gae + values[step]
             index -= 1
-            #returns.insert(0, gae + values[step])
 
             step_reverse_counter -= 1
             last_step = False

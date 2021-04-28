@@ -5,8 +5,7 @@ class Normalizer:
     # change: Autocheck for code quality
     """A class supporting online normalization"""  # change
     """
-        Attributes
-        ----------
+    Attributes:
         absolute_max_value : float
             Maximum calculated normalized value. Especially at the
             beginning when only a few samples are available the standard
@@ -16,8 +15,7 @@ class Normalizer:
         dim : int
             Dimensions of the variable to be normalized.
 
-        Methods
-        -------
+    Methods
         add(float):
             Recalculate mean and standard deviation also taking into
             account the new number.
@@ -30,16 +28,15 @@ class Normalizer:
 
     def __init__(self, dim, absolute_max_value):
         """
-        Parameters
-        ----------
-        dim : int
-            Dimension of the variable to be normalized
-        absolute_max_value : float
-            Maximum calculated normalized value. Especially at the
-            beginning when only a few samples are available the standard
-            deviation can become very small. This can lead to a very
-            large normalized values. To dampen this effect absolute
-            values larger than absolute_max_value are cutt off.
+        Args:
+            dim : int
+                Dimension of the variable to be normalized
+            absolute_max_value : float
+                Maximum calculated normalized value. Especially at the
+                beginning when only a few samples are available the standard
+                deviation can become very small. This can lead to a very
+                large normalized values. To dampen this effect absolute
+                values larger than absolute_max_value are cutt off.
         """
         self._n = 0
         if dim == 1:
@@ -75,7 +72,7 @@ class Normalizer:
         e - Welford's online algorithm - Numerically optimized version
 
             Parameters
-            ---------- 
+            ----------
                 x : float / float[dim]
 
             Returns
@@ -138,10 +135,3 @@ class Normalizer:
 
         self.add(x)
         return self.normalize(x)
-
-
-def norm(x):
-    if len(x) == 1:
-        return 0
-    else:
-        return (x[-1] - np.mean(x)) / np.std(x)
