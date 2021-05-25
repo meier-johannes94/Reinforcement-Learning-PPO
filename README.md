@@ -1,4 +1,4 @@
-# Reinforcement-Learning-PPO: Learn to play hockey (PyTorch)
+# Learn to play hockey via Reinforcement-Learning (PPO and PyTorch)
 Implementation of the PPO Algorithm  to control an agent in the hockey environment.
 The project was done as part of the Reinforcement Learning course at the University of Tübingen in WS 20/21.
 
