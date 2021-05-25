@@ -37,7 +37,7 @@ Because PPO is a policy gradient algorithm, the agent's policy is modeled explic
 * The implementation leads to a win rate of up to 91% when playing against both opponents in alternating way. For other hyperparameters the performance might be better. 
 * Because it is an on-policy algorithm, it is not surprising that beyond a certain point performance seems to plateau
 * The agent is on the left side: 
-![](agent_in_action.gif) 
+![](agent_in_action.gif | width=100) 
 
 ## Basic overview over implementation
 * PPO: Implementation of the PPO algorithm
