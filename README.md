@@ -34,8 +34,10 @@ Because PPO is a policy gradient algorithm, the agent's policy is modeled explic
 * box2d
 
 ## Results
-* The implementation leads to satisfying results using the default hyperparameters and lbda = 0.95 and gamma = 0.95 reaching a win rate of 92% against the normal opponent and 95% against the weak opponent.
+* The implementation leads to a win rate of up to 91% when playing against both opponents in alternating way. For other hyperparameters the performance might be better. 
 * Because it is an on-policy algorithm, it is not surprising that beyond a certain point performance seems to plateau
+* The agent is on the left side: 
+![](agent_in_action.gif) 
 
 ## Basic overview over implementation
 * PPO: Implementation of the PPO algorithm
