@@ -8,7 +8,7 @@ import torch.nn.functional as F
 from Normalizer import Normalizer
 from Memory import Memory
 
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+device = "cpu" #torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 ZERO_STD = 0.0000001
 MAX_STD = 15
 

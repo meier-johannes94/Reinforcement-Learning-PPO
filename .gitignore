@@ -129,4 +129,5 @@ dmypy.json
 .pyre/
 
 #Project specific
-/checkpoints
+/checkpoints/*
+!/checkpoints/Hockey-v0_Lbda=0.95,Gamma=0.95_compressed_best.pth

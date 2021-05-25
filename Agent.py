@@ -86,7 +86,7 @@ class Agent:
         self._current_reward_calc = 0
         self._current_reward_true = 0
         self._current_opp_type = 1  # Defending
-        self._current_opp_weak = True
+        self._current_opp_weak = False
         self._current_frame_skip_activated = False
         self._current_closeness_puck = 0
         self._current_touch_puck = 0
@@ -305,7 +305,7 @@ class Agent:
             'ep_puck_direction': [],
             'ep_length':  [],
             'ep_wins':  [],
-            'ep_eval_results': [[], [], [], [], [], []],
+            'ep_eval_results': [[], [], []],
             'ep_opp_weak': [],
             'ep_opp_type': [],
             'ep_frame_skip': []
@@ -536,13 +536,12 @@ class Agent:
                             / len(eval_rewards_arr))
 
         train_wins, train_lost, train_draws = self._calculateWLDRates(
-            training_matches, eval_start, eval_end)
+            training_matches, train_start, train_end)
 
         eval_wins, eval_lost, eval_draws = self._calculateWLDRates(
             eval_matches, eval_start, eval_end)
 
-        hist_index = 1 if self._current_opp_weak else 0
-        hist_index += 2*(self._current_opp_type.value-1)
+        hist_index = self._current_opp_type.value-1
 
         save_note = ""
         if len(self._stats["ep_eval_results"][hist_index]) == 0:
@@ -573,13 +572,15 @@ class Agent:
                   save_note))
 
     def _calculateWLDRates(cls, matches, start, end):
-        count = end-start
+        count = float(end-start)
 
-        wins = np.sum(np.where(matches > 0, 1, 0))
-        lost = np.sum(np.where(matches < 0, 1, 0))
-        draws = np.sum(np.where(matches == 0, 1, 0))
+        wins = float(np.sum(np.where(matches > 0, 1, 0)))
+        lost = float(np.sum(np.where(matches < 0, 1, 0)))
+        draws = float(np.sum(np.where(matches == 0, 1, 0)))
 
-        return wins / count * 100, lost / count * 100, draws / count * 100
+        return (wins / count * 100.0,
+                lost / count * 100.0,
+                draws / count * 100.0)
 
     def _update(self):
         if self._memory.lengths[-1] == 0:
@@ -647,8 +648,8 @@ class Agent:
 
     @property
     def config(self):
-        """Readonly. Configuration of the model. For field description 
-        see constructor. 
+        """Readonly. Configuration of the model. For field description
+        see constructor.
 
         Returns:
             Dict:
@@ -670,7 +671,7 @@ class Agent:
             ep_last_training : int
                 Number of first episode, where the last training began.
             ep_last_switch_to_evaluation : int
-                Number of the first episode, where the last evaluation 
+                Number of the first episode, where the last evaluation
                 began.
             episode_mode : arr
                 Mode (Training, Evaluation) for every episode
@@ -695,12 +696,9 @@ class Agent:
             ep_eval_results: Arr
                 History over all evaluation performances per
                 category.
-                [0] = Normal opponent, Defending Mode
-                [1] = Weak opponent, Defending Mode
-                [2] = Normal opponent, Shooting Mode
-                [3] = Weak opponent, Shooting Mode
-                [4] = Normal opponent, Normal Mode
-                [5] = Weak opponent, Normal Mode
+                [0] = Defending Mode
+                [1] = Shooting Mode
+                [2] = Normal Mode
             ep_opp_weak : Arr
                 For each episode (True, False), whether the opponent of
                 that episode was weak or not weak. Also saved for
@@ -734,7 +732,7 @@ class Agent:
         """
         return self._current_opp_type
 
-    @op_type.setter
+    @opp_type.setter
     def opp_type(self, value):
         """Opponent Type
 

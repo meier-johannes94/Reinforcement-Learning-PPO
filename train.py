@@ -1,6 +1,5 @@
 import numpy as np
 import random
-import pylab as plt
 import torch
 import gym
 import laserhockey.hockey_env as lh
@@ -14,7 +13,7 @@ def train(training_episodes,
           training_length,
           eval_length,
           save_episodes,
-          episode_max_steps=402,
+          episode_max_steps=1000,
           gamma=0.99,
           K_epochs=10,
           eps_clip=0.25,
@@ -42,15 +41,16 @@ def train(training_episodes,
           update_timesteps=20000,
           opponent_type=OpponentType.NORMAL,
           opponent_weak=False,
+          opponent_normal=True,
           default_timestep_loss=0.0,
           frame_skip_frequency=1,
           input_clipping_max_abs_value=10.0,
-          gradient_clipping=2.0,
+          gradient_clipping=10.0,
           lbda=0.9,
           filename="",
           seed=None,
           load_filename=None,
-          print_config=True,
+          print_config=False,
           load_info="best"):
     """Trains a new or existing agent in the hockey environment using the
     PPO algorithm.  After every [training_length] episodes of training
@@ -80,7 +80,7 @@ def train(training_episodes,
         episode_max_steps (unsigned int,optional):
             Maximum number of timesteps the agant trains within an
             epsiode before it is interrupted.  230 is the default value
-            of the environment. Defaults to 235.
+            of the environment. Defaults to 1000.
         gamma (float:[0-1], optional):
             Discount factor gamma. Defaults to 0.99.
         K_epochs (int, optional):
@@ -172,7 +172,17 @@ def train(training_episodes,
         opponent_weak (bool, optional):
             If true the agent plays against the weak basic opponent.  In
             case that an old checkpoint version of the agent is sampled,
-            this setting is not reelvant. Defaults to False
+            this setting is not reelvant. If the opponent_weak and
+            opponent_normal is true one of the basic agents is
+            sampled with 50% during evaluation and training.
+            Defaults to False
+        opponent_normal (bool, optional):
+            If true the agent plays against the normal basic opponent.  In
+            case that an old checkpoint version of the agent is sampled,
+            this setting is not reelvant. If the opponent_weak and
+            opponent_normal is true one of the basic agents is
+            sampled with 50% during evaluation and training.
+            Defaults to True
         default_timestep_loss (float, optional):
             Defines a reward, whose inverted (negative) value is added
             at each timestep. Defaults to 0.
@@ -188,7 +198,7 @@ def train(training_episodes,
             +input_clipping_max_abs_value are cut off. Defaults to 10.
         gradient_clipping (int, optional):
             Ìf not None the gradient is clipped with the here
-            specified value. Defaults to 2.
+            specified value. Defaults to 10.0.
         lbda (float, optional):
             Lambda parameter of the PPO algorithm. Defaults to 0.9
         filename (str, optional):
@@ -203,7 +213,7 @@ def train(training_episodes,
             created.
         print_config (bool, optional):
             Prints the main configuration in the console before starting
-            training. Defaults to True.
+            training. Defaults to False.
         load_info (str, optional):
             Usually two checkpoints are saved of the agent: 'Best'
             refers to the model with the highest evaluation performance.
@@ -228,7 +238,7 @@ def train(training_episodes,
         np.random.seed(seed)
         random.seed(seed)
 
-    ar = AgentRegister(opponent_weak, opponent_type)
+    ar = AgentRegister(opponent_weak, opponent_normal, opponent_type)
     agent = Agent(ar)
 
     if load_filename is not None:
@@ -249,7 +259,6 @@ def train(training_episodes,
                         1, 0, 0, 0, 0, default_timestep_loss)
 
     agent.opp_type = opponent_type
-    agent.opp_weak = opponent_weak
     agent.filename = filename
     agent.frame_skipping_activated = False
     agent.frame_skipping_length = frame_skipping_length
@@ -267,7 +276,8 @@ def train(training_episodes,
 
         # Sample opponent
         while True:
-            player2 = ar.sample_agent(agent.mode)
+            player2, basic_agent, weak = ar.sample_agent(agent.mode)
+            agent.opp_weak = weak
             if player2 is not None:
                 break
 
