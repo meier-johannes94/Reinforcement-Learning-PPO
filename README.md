@@ -48,7 +48,7 @@ Because PPO is a policy gradient algorithm, the agent's policy is modeled explic
 * test_implementation: See an example how to train, see training results including plotting. Good starting point to explore the code.
 
 ## Helpful links wrt. to the project and especially to understand PPO:
-* [Easy explanation of PPO](https://www.youtube.com/watch?v=5P7I-xPq8u8&t=1046s)
+* [Easy explanation of PPO](https://www.youtube.com/watch?v=5P7I-xPq8u8)
 * [PPO paper](https://arxiv.org/abs/1707.06347)
 * [RL adventure implementation](https://github.com/higgsfield/RL-Adventure-2) (Code also partially used)
 * [PyTorch PPO implementation](https://github.com/nikhilbarhate99/PPO-PyTorch) (Code also partially used)
