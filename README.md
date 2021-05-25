@@ -26,7 +26,7 @@ Because PPO is a policy gradient algorithm, the agent's policy is modeled explic
 * The whole process of training is split up into alternating periods of training and evaluation. Evaluation is always against the basic opponent and doesn't use exploration. If the agent achieves a record high evaluation performance his current checkpoint is added to a list of possible opponents. During training the next opponent (player2) is then sampled from the list of old checkpoints and the basic opponent provided by the laser hockey package. This prevents from overfitting the basic agent.
 
 ## Requirements
-* nnum
+* enum
 * pickle
 * numpy
 * torch
