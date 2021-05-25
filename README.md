@@ -43,6 +43,7 @@ Because PPO is a policy gradient algorithm, the agent's policy is modeled explic
 * PPO: Implementation of the PPO algorithm
 * Agent: Combines training, evaluation, statistics, saving, loading and adding to checkpoint list in one class.
 * train: Helper method for training
+* AgentRegister: Allows sampling opponents. Supports the training method
 * test_agent: Helper method to see training results
 * test_implementation: See an example how to train, see training results including plotting. Good starting point to explore the code.
 
